@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: website-app
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    volumes:
+      # Optional: Mount logs volume for debugging
+      - logs:/var/log/nginx
+    networks:
+      - website-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.website.rule=Host(`your-domain.com`)"
+      - "traefik.http.routers.website.entrypoints=websecure"
+      - "traefik.http.routers.website.tls.certresolver=letsencrypt"
+      - "traefik.http.services.website.loadbalancer.server.port=80"
+
+volumes:
+  logs:
+    driver: local
+
+networks:
+  website-network:
+    driver: bridge

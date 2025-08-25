@@ -1,0 +1,354 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.App {
+  font-family: 'Open Sans', sans-serif;
+  color: #2c3e2c;
+  background: #1a1a1a;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  background: linear-gradient(135deg, #2c3e2c 0%, #4a5c4a 50%, #2c3e2c 100%);
+}
+
+/* Header */
+.header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(26, 26, 26, 0.95);
+  backdrop-filter: blur(15px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 15px 0;
+}
+
+.nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 30px;
+}
+
+.logo {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #e8c547;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 40px;
+  list-style: none;
+}
+
+.nav-links a {
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: color 0.3s ease;
+}
+
+.nav-links a:hover {
+  color: #e8c547;
+}
+
+/* Main Content */
+.main-content {
+  display: flex;
+  height: 100vh;
+  padding-top: 80px;
+}
+
+.controls-sidebar {
+  width: 380px;
+  background: rgba(26, 26, 26, 0.95);
+  backdrop-filter: blur(15px);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 40px 30px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.canvas-area {
+  flex: 1;
+  position: relative;
+}
+
+.hero-section {
+  margin-bottom: 40px;
+}
+
+.hero-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  line-height: 1.1;
+}
+
+.hero-subtitle {
+  font-size: 1.1rem;
+  color: #e8c547;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 15px;
+}
+
+.hero-description {
+  color: #cccccc;
+  line-height: 1.6;
+  margin-bottom: 30px;
+}
+
+/* View Controls */
+.view-controls {
+  margin-bottom: 40px;
+}
+
+.section-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e8c547;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.view-button {
+  background: linear-gradient(135deg, #3a4d3a 0%, #2c3e2c 100%);
+  color: #ffffff;
+  border: 2px solid #4a5c4a;
+  border-radius: 8px;
+  padding: 15px 20px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  text-align: center;
+}
+
+.button-icon {
+  font-size: 1.2rem;
+  display: block;
+}
+
+.view-button:hover {
+  transform: translateY(-2px);
+  border-color: #e8c547;
+  box-shadow: 0 8px 25px rgba(232, 197, 71, 0.2);
+  background: linear-gradient(135deg, #4a5c4a 0%, #3a4d3a 100%);
+}
+
+.view-button.active {
+  background: linear-gradient(135deg, #e8c547 0%, #d4af37 100%);
+  color: #1a1a1a;
+  border-color: #e8c547;
+  box-shadow: 0 4px 20px rgba(232, 197, 71, 0.3);
+}
+
+.view-button.active:hover {
+  background: linear-gradient(135deg, #d4af37 0%, #e8c547 100%);
+  box-shadow: 0 6px 25px rgba(232, 197, 71, 0.4);
+}
+
+/* Features Section */
+.features {
+  margin-bottom: 30px;
+}
+
+.feature-list {
+  list-style: none;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #cccccc;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.feature-icon {
+  font-size: 1.1rem;
+  color: #e8c547;
+}
+
+/* CTA Section */
+.cta-section {
+  background: linear-gradient(135deg, #e8c547 0%, #d4af37 100%);
+  border-radius: 12px;
+  padding: 25px;
+  text-align: center;
+  margin-top: 30px;
+}
+
+.cta-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.cta-text {
+  color: #2c3e2c;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+}
+
+.cta-button {
+  background: #1a1a1a;
+  color: #e8c547;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 25px;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.cta-button:hover {
+  background: #2c3e2c;
+  transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .nav-container {
+    padding: 0 20px;
+  }
+  
+  .nav-links {
+    gap: 25px;
+  }
+  
+  .controls-sidebar {
+    width: 320px;
+    padding: 30px 20px;
+  }
+  
+  .hero-title {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    flex-direction: column;
+  }
+  
+  .controls-sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 50vh;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .canvas-area {
+    flex: 1;
+    min-height: 50vh;
+  }
+  
+  .nav-links {
+    display: none;
+  }
+  
+  .button-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .hero-title {
+    font-size: 1.8rem;
+  }
+  
+  .hero-section {
+    margin-bottom: 30px;
+  }
+}
+
+/* Loading Animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.controls-sidebar {
+  animation: fadeInUp 0.8s ease-out;
+}
+
+/* Custom Scrollbar */
+.controls-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.controls-sidebar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.controls-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(232, 197, 71, 0.3);
+  border-radius: 4px;
+}
+
+.controls-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 197, 71, 0.5);
+}
