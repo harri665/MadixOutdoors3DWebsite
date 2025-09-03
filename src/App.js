@@ -53,10 +53,51 @@ export default function App() {
         </div>
 
         {isLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
-            <div className="text-center">
-              <div className="text-slate-300 text-lg font-semibold mb-2">Loading 3D Model...</div>
-              <div className="text-slate-500 text-sm">Decompressing gzipped GLB file</div>
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+            <div className="text-center space-y-6 p-8">
+              {/* Logo/Brand Area */}
+              <div className="relative">
+                <div className="w-16 h-16 mx-auto mb-4 relative">
+                  {/* Simple animated ring */}
+                  <div className="absolute inset-0 border-2 border-slate-800 rounded-full"></div>
+                  <div className="absolute inset-0 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                
+                {/* Simple white text */}
+                <h1 className="text-2xl font-bold text-white mb-2">
+                  Madix Outdoors
+                </h1>
+                <p className="text-slate-400 text-sm font-medium tracking-wide">
+                  Interactive 3D Experience
+                </p>
+              </div>
+
+              {/* Progress Section */}
+              <div className="space-y-3 max-w-sm mx-auto">
+                {/* Loading text */}
+                <div className="text-slate-300 text-lg font-semibold">
+                  <span className="inline-block">Loading 3D Model</span>
+                  <span className="inline-block animate-pulse ml-1">.</span>
+                  <span className="inline-block animate-pulse ml-0.5" style={{animationDelay: '0.2s'}}>.</span>
+                  <span className="inline-block animate-pulse ml-0.5" style={{animationDelay: '0.4s'}}>.</span>
+                </div>
+                
+                {/* Simple progress bar */}
+                <div className="relative w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="absolute inset-0 bg-white rounded-full animate-[loading_2s_ease-in-out_infinite] opacity-80"></div>
+                </div>
+                
+              </div>
+
+              {/* Floating dots effect - simple white/gray theme */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-white rounded-full animate-float opacity-30"></div>
+                <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-slate-400 rounded-full animate-float-delayed opacity-20"></div>
+                <div className="absolute bottom-1/3 left-1/3 w-1.5 h-1.5 bg-white rounded-full animate-float-slow opacity-25"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-1 h-1 bg-slate-300 rounded-full animate-float opacity-15"></div>
+                <div className="absolute top-1/2 left-1/6 w-1 h-1 bg-white rounded-full animate-float-delayed opacity-20"></div>
+                <div className="absolute top-3/4 right-1/6 w-1.5 h-1.5 bg-slate-400 rounded-full animate-float-slow opacity-25"></div>
+              </div>
             </div>
           </div>
         )}
