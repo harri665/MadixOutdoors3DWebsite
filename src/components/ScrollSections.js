@@ -424,8 +424,8 @@ export function ScrollSections() {
   }, [api.clipNames]);
 
   return (
-    <main className="relative z-10 ">
-      <div className="absolute inset-0 w-full h-full pointer-events-none"></div>
+    <main className="relative z-10">
+      <div className="absolute inset-0 w-full h-full"></div>
       <section className="px-6 py-16 max-w-3xl mx-auto relative z-20"></section>
 
       {/* Section 1: Open/Setup */}
