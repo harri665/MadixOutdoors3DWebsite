@@ -385,18 +385,57 @@ export function ScrollSections() {
     };
 
     let scrollTimeout;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    
     const throttledScroll = () => {
       if (scrollTimeout) return;
+      // Reduce throttling on mobile for smoother experience
+      const throttleTime = isMobile ? 4 : 8;
       scrollTimeout = setTimeout(() => {
         onScroll();
         scrollTimeout = null;
-      }, 8);
+      }, throttleTime);
     };
-    const onResize = () => onScroll();
+    
+    const onResize = () => {
+      // Add a small delay for mobile orientation changes
+      if (isMobile) {
+        setTimeout(() => onScroll(), 100);
+      } else {
+        onScroll();
+      }
+    };
+
+    // Handle touch events for mobile
+    const handleTouchStart = (e) => {
+      if (isMobile) {
+        // Store initial touch position for momentum calculation
+        const touch = e.touches[0];
+        window.lastTouchY = touch.clientY;
+        window.touchStartTime = Date.now();
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (isMobile) {
+        // Calculate touch momentum for smoother animations
+        const touch = e.touches[0];
+        const deltaY = window.lastTouchY - touch.clientY;
+        const deltaTime = Date.now() - window.touchStartTime;
+        window.touchVelocity = Math.abs(deltaY / deltaTime);
+        window.lastTouchY = touch.clientY;
+      }
+    };
 
     if (typeof window !== "undefined" && window.addEventListener) {
       window.addEventListener("scroll", throttledScroll, { passive: true });
       window.addEventListener("resize", onResize);
+      
+      // Add mobile touch event listeners
+      if (isMobile) {
+        window.addEventListener("touchstart", handleTouchStart, { passive: true });
+        window.addEventListener("touchmove", handleTouchMove, { passive: true });
+      }
 
       // Initial camera: do a single "immediate" snap once so we start from a known baseline,
       // then all subsequent movements are smoothed.
@@ -412,6 +451,13 @@ export function ScrollSections() {
       return () => {
         window.removeEventListener("scroll", throttledScroll);
         window.removeEventListener("resize", onResize);
+        
+        // Remove mobile touch event listeners
+        if (isMobile) {
+          window.removeEventListener("touchstart", handleTouchStart);
+          window.removeEventListener("touchmove", handleTouchMove);
+        }
+        
         if (scrollTimeout) clearTimeout(scrollTimeout);
         camQRef.current.reset();
       };
@@ -424,41 +470,41 @@ export function ScrollSections() {
   }, [api.clipNames]);
 
   return (
-    <main className="relative z-10 ">
+    <main className="relative z-10 touch-pan-y">
       <div className="absolute inset-0 w-full h-full pointer-events-none"></div>
       <section className="px-6 py-16 max-w-3xl mx-auto relative z-20"></section>
 
       {/* Section 1: Open/Setup */}
-      <section ref={sect1Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
+      <section ref={sect1Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20 touch-pan-y">
         <div></div>
       </section>
 
       {/* Section 2: Door */}
-      <section ref={sect2Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
+      <section ref={sect2Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20 touch-pan-y">
         <div></div>
       </section>
 
       {/* Section 3: Mattress Animation */}
-      <section ref={sect3Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
+      <section ref={sect3Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20 touch-pan-y">
         <div></div>
       </section>
 
       {/* Section 4: Side Animation */}
-      <section ref={sect4Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
+      <section ref={sect4Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20 touch-pan-y">
         <div></div>
       </section>
 
       {/* Section 5: Flythrough */}
-      <section ref={sect5Ref} className="min-h-[250vh] px-6 py-24 border-slate-800 relative z-20">
+      <section ref={sect5Ref} className="min-h-[200vh] md:min-h-[250vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20 touch-pan-y">
         <div></div>
       </section>
 
       {/* Section 6: New Scene */}
-      <section ref={sect6Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
+      <section ref={sect6Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20 touch-pan-y">
         <div></div>
       </section>
 
-      <section className="px-6 py-24 border-slate-800 relative z-20">
+      <section className="px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20 touch-pan-y">
         <div></div>
       </section>
     </main>

@@ -9,11 +9,63 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Mobile optimizations */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  touch-action: pan-y;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consoles, 'Courier New',
     monospace;
+}
+
+/* Mobile-specific optimizations */
+.mobile-optimized {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  touch-action: pan-y;
+}
+
+.touch-pan-y {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent zoom on touch devices */
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+/* Fix mobile viewport issues */
+@supports (-webkit-touch-callout: none) {
+  .mobile-optimized {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Smooth scrolling for mobile */
+@media (max-width: 768px) {
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  body {
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Improve touch responsiveness */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Better button touch targets */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* Simple loading animation */
