@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: tent-website
     ports:
-      - "8080:80"  # Changed to 8080 to avoid conflicts with other services
+      - "9042:80"  # Changed to 8080 to avoid conflicts with other services
     restart: unless-stopped
     environment:
       - NODE_ENV=production
