@@ -9,10 +9,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Mobile optimizations */
+  /* Mobile optimizations - less aggressive */
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: none;
-  touch-action: pan-y;
+  overscroll-behavior-y: contain;
 }
 
 code {
@@ -23,16 +22,16 @@ code {
 /* Mobile-specific optimizations */
 .mobile-optimized {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: none;
-  touch-action: pan-y;
+  overscroll-behavior-y: contain;
 }
 
 .touch-pan-y {
-  touch-action: pan-y;
+  /* Allow both pan-y and manipulation for better mobile experience */
+  touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Prevent zoom on touch devices */
+/* Less aggressive touch manipulation */
 .touch-manipulation {
   touch-action: manipulation;
 }
@@ -40,31 +39,41 @@ code {
 /* Fix mobile viewport issues */
 @supports (-webkit-touch-callout: none) {
   .mobile-optimized {
-    height: -webkit-fill-available;
+    min-height: -webkit-fill-available;
   }
 }
 
-/* Smooth scrolling for mobile */
+/* Improved mobile scrolling */
 @media (max-width: 768px) {
   html {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
   
   body {
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    /* Prevent the white page issue */
+    background: #000;
+    min-height: 100vh;
   }
   
-  /* Improve touch responsiveness */
+  /* Improve touch responsiveness but don't remove all highlights */
   * {
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
   }
   
   /* Better button touch targets */
   button {
     min-height: 44px;
     min-width: 44px;
+  }
+  
+  /* Ensure scroll sections work on mobile */
+  main {
+    position: relative;
+    z-index: 10;
   }
 }
 

@@ -66,28 +66,38 @@ export default function App() {
   // Prevent zoom on mobile when double-tapping UI elements
   useEffect(() => {
     if (isMobile) {
-      const preventZoom = (e) => {
-        if (e.touches.length > 1) {
+      // Less aggressive touch prevention - only prevent multi-touch zoom
+      const preventMultiTouchZoom = (e) => {
+        if (e.touches && e.touches.length > 1) {
           e.preventDefault();
         }
       };
 
+      // Only prevent double-tap zoom on specific elements, not globally
       const preventDoubleTapZoom = (e) => {
-        let lastTouchEnd = 0;
-        const time = new Date().getTime();
-        if (time - lastTouchEnd <= 300) {
-          e.preventDefault();
+        const target = e.target;
+        // Only prevent zoom on Canvas and UI elements, not scroll areas
+        if (target.tagName === 'CANVAS' || target.closest('button')) {
+          let lastTouchEnd = 0;
+          const time = new Date().getTime();
+          if (time - lastTouchEnd <= 300) {
+            e.preventDefault();
+          }
+          lastTouchEnd = time;
         }
-        lastTouchEnd = time;
       };
 
-      document.addEventListener('touchstart', preventZoom, { passive: false });
-      document.addEventListener('touchend', preventDoubleTapZoom, { passive: false });
-
-      return () => {
-        document.removeEventListener('touchstart', preventZoom);
-        document.removeEventListener('touchend', preventDoubleTapZoom);
-      };
+      // Add listeners only to specific elements
+      const canvas = document.querySelector('canvas');
+      if (canvas) {
+        canvas.addEventListener('touchstart', preventMultiTouchZoom, { passive: false });
+        canvas.addEventListener('touchend', preventDoubleTapZoom, { passive: false });
+        
+        return () => {
+          canvas.removeEventListener('touchstart', preventMultiTouchZoom);
+          canvas.removeEventListener('touchend', preventDoubleTapZoom);
+        };
+      }
     }
   }, [isMobile]);
 
@@ -116,10 +126,19 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-slate-100 ${isMobile ? 'mobile-optimized' : ''}`} 
-         style={isMobile ? { height: 'calc(var(--vh, 1vh) * 100)' } : {}}>
+         style={isMobile ? { 
+           minHeight: '100vh',
+           height: 'auto',
+           touchAction: 'pan-y' // Allow vertical scrolling on the main container
+         } : {}}>
       {/* Sticky Viewer Header */}
-      <div className={`sticky top-0 z-0 border-b border-slate-800 ${isMobile ? 'h-[calc(var(--vh,1vh)*100)] touch-pan-y' : 'h-[100svh]'}`}>
-        <div className={`absolute z-10 rounded-xl border border-slate-800/80 bg-black/40 px-3 py-2 text-sm font-semibold tracking-wide ${isMobile ? 'top-2 left-2 text-xs' : 'top-4 left-4'}`}>
+      <div className={`sticky top-0 z-0 border-b border-slate-800 ${isMobile ? 'h-[100vh] touch-pan-y' : 'h-[100svh]'}`} 
+           style={isMobile ? { 
+             touchAction: 'none', // Only for the 3D viewport
+             position: 'sticky',
+             top: 0
+           } : {}}>
+        <div className={`absolute z-10 rounded-xl border border-slate-800/80 bg-black/40 px-3 py-2 text-sm font-semibold tracking-wide pointer-events-auto ${isMobile ? 'top-2 left-2 text-xs' : 'top-4 left-4'}`}>
           tent1 • {isMobile ? 'Swipe to Animate' : 'Scroll to Animate'}
         </div>
 
