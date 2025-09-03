@@ -385,26 +385,14 @@ export function ScrollSections() {
     };
 
     let scrollTimeout;
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-    
     const throttledScroll = () => {
       if (scrollTimeout) return;
-      // Slightly reduce throttling on mobile for smoother experience
-      const throttleTime = isMobile ? 6 : 8;
       scrollTimeout = setTimeout(() => {
         onScroll();
         scrollTimeout = null;
-      }, throttleTime);
+      }, 8);
     };
-    
-    const onResize = () => {
-      // Add a small delay for mobile orientation changes
-      if (isMobile) {
-        setTimeout(() => onScroll(), 100);
-      } else {
-        onScroll();
-      }
-    };
+    const onResize = () => onScroll();
 
     if (typeof window !== "undefined" && window.addEventListener) {
       window.addEventListener("scroll", throttledScroll, { passive: true });
@@ -436,41 +424,41 @@ export function ScrollSections() {
   }, [api.clipNames]);
 
   return (
-    <main className="relative z-10" style={{ touchAction: 'pan-y' }}>
+    <main className="relative z-10 ">
       <div className="absolute inset-0 w-full h-full pointer-events-none"></div>
       <section className="px-6 py-16 max-w-3xl mx-auto relative z-20"></section>
 
       {/* Section 1: Open/Setup */}
-      <section ref={sect1Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20">
+      <section ref={sect1Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
         <div></div>
       </section>
 
       {/* Section 2: Door */}
-      <section ref={sect2Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20">
+      <section ref={sect2Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
         <div></div>
       </section>
 
       {/* Section 3: Mattress Animation */}
-      <section ref={sect3Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20">
+      <section ref={sect3Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
         <div></div>
       </section>
 
       {/* Section 4: Side Animation */}
-      <section ref={sect4Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20">
+      <section ref={sect4Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
         <div></div>
       </section>
 
       {/* Section 5: Flythrough */}
-      <section ref={sect5Ref} className="min-h-[200vh] md:min-h-[250vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20">
+      <section ref={sect5Ref} className="min-h-[250vh] px-6 py-24 border-slate-800 relative z-20">
         <div></div>
       </section>
 
       {/* Section 6: New Scene */}
-      <section ref={sect6Ref} className="min-h-[120vh] md:min-h-[120vh] px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20">
+      <section ref={sect6Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
         <div></div>
       </section>
 
-      <section className="px-4 md:px-6 py-16 md:py-24 border-slate-800 relative z-20">
+      <section className="px-6 py-24 border-slate-800 relative z-20">
         <div></div>
       </section>
     </main>

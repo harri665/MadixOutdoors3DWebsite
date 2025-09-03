@@ -1,4 +1,4 @@
-import React, { Suspense, useRef, useState, useEffect } from "react";
+import React, { Suspense, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { ContactShadows, Environment } from "@react-three/drei";
 import { CameraRig } from "./components/CameraRig";
@@ -19,87 +19,7 @@ import * as THREE from "three";
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
   const rigRef = useRef({ camera: null, controls: null, defaultPos: null, defaultTarget: new THREE.Vector3(0, 0, 0) });
-
-  // Mobile detection and viewport handling
-  useEffect(() => {
-    const checkMobile = () => {
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-      setIsMobile(isMobileDevice);
-    };
-
-    // Set initial mobile state
-    checkMobile();
-
-    // Handle resize events
-    const handleResize = () => {
-      checkMobile();
-      // Fix mobile viewport height issues
-      if (window.innerWidth <= 768) {
-        const vh = window.innerHeight * 0.01;
-        document.documentElement.style.setProperty('--vh', `${vh}px`);
-      }
-    };
-
-    // Handle orientation change on mobile
-    const handleOrientationChange = () => {
-      setTimeout(() => {
-        handleResize();
-        // Force scroll recalculation after orientation change
-        window.dispatchEvent(new Event('resize'));
-      }, 100);
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleOrientationChange);
-
-    // Initial setup
-    handleResize();
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleOrientationChange);
-    };
-  }, []);
-
-  // Prevent zoom on mobile when double-tapping UI elements
-  useEffect(() => {
-    if (isMobile) {
-      // Less aggressive touch prevention - only prevent multi-touch zoom
-      const preventMultiTouchZoom = (e) => {
-        if (e.touches && e.touches.length > 1) {
-          e.preventDefault();
-        }
-      };
-
-      // Only prevent double-tap zoom on specific elements, not globally
-      const preventDoubleTapZoom = (e) => {
-        const target = e.target;
-        // Only prevent zoom on Canvas and UI elements, not scroll areas
-        if (target.tagName === 'CANVAS' || target.closest('button')) {
-          let lastTouchEnd = 0;
-          const time = new Date().getTime();
-          if (time - lastTouchEnd <= 300) {
-            e.preventDefault();
-          }
-          lastTouchEnd = time;
-        }
-      };
-
-      // Add listeners only to specific elements
-      const canvas = document.querySelector('canvas');
-      if (canvas) {
-        canvas.addEventListener('touchstart', preventMultiTouchZoom, { passive: false });
-        canvas.addEventListener('touchend', preventDoubleTapZoom, { passive: false });
-        
-        return () => {
-          canvas.removeEventListener('touchstart', preventMultiTouchZoom);
-          canvas.removeEventListener('touchend', preventDoubleTapZoom);
-        };
-      }
-    }
-  }, [isMobile]);
 
   const handleResetCamera = () => {
     window.dispatchEvent(
@@ -125,21 +45,11 @@ export default function App() {
   const handleLoadingComplete = () => setIsLoading(false);
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-slate-100 ${isMobile ? 'mobile-optimized' : ''}`} 
-         style={isMobile ? { 
-           minHeight: '100vh',
-           height: 'auto',
-           touchAction: 'pan-y' // Allow vertical scrolling on the main container
-         } : {}}>
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-slate-100">
       {/* Sticky Viewer Header */}
-      <div className={`sticky top-0 z-0 border-b border-slate-800 ${isMobile ? 'h-[100vh] touch-pan-y' : 'h-[100svh]'}`} 
-           style={isMobile ? { 
-             touchAction: 'none', // Only for the 3D viewport
-             position: 'sticky',
-             top: 0
-           } : {}}>
-        <div className={`absolute z-10 rounded-xl border border-slate-800/80 bg-black/40 px-3 py-2 text-sm font-semibold tracking-wide pointer-events-auto ${isMobile ? 'top-2 left-2 text-xs' : 'top-4 left-4'}`}>
-          tent1 • {isMobile ? 'Swipe to Animate' : 'Scroll to Animate'}
+      <div className="sticky top-0 z-0 h-[100svh] border-b border-slate-800">
+        <div className="absolute top-4 left-4 z-10 rounded-xl border border-slate-800/80 bg-black/40 px-3 py-2 text-sm font-semibold tracking-wide">
+          tent1 • Scroll to Animate
         </div>
 
         {isLoading && (
@@ -192,21 +102,12 @@ export default function App() {
           </div>
         )}
 
-        <Canvas 
-          shadows 
-          camera={{ fov: isMobile ? 50 : 45, near: 0.1, far: 200, position: CAMERAS.idle.position.toArray() }}
-          gl={{ 
-            antialias: !isMobile, // Disable antialiasing on mobile for better performance
-            powerPreference: isMobile ? "low-power" : "high-performance",
-            alpha: false
-          }}
-          dpr={isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio} // Limit DPR on mobile
-        >
+        <Canvas shadows camera={{ fov: 45, near: 0.1, far: 200, position: CAMERAS.idle.position.toArray() }}>
           <Suspense fallback={null}>
             <CameraRig rigRef={rigRef} initialTarget={CAMERAS.idle.target} />
             <Environment preset="city" background={false} />
             <ambientLight intensity={0.3} />
-            <directionalLight castShadow intensity={1.1} position={[5, 6, 3]} shadow-mapSize={isMobile ? [1024, 1024] : [2048, 2048]} />
+            <directionalLight castShadow intensity={1.1} position={[5, 6, 3]} shadow-mapSize={[2048, 2048]} />
             <hemisphereLight intensity={0.2} groundColor="#444444" />
             <ContactShadows position={[0, -0.001, 0]} opacity={0.7} scale={20} blur={2.5} far={20} />
             <SceneContent onCenter={handleCenter} onLoadingComplete={handleLoadingComplete} />
@@ -215,11 +116,8 @@ export default function App() {
           </Suspense>
         </Canvas>
 
-        <div className={`absolute z-10 flex gap-2 ${isMobile ? 'bottom-2 left-2' : 'bottom-4 left-4'}`}>
-          <button 
-            onClick={handleResetCamera} 
-            className={`rounded-xl border border-slate-700 bg-slate-800/60 ${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} touch-manipulation`}
-          >
+        <div className="absolute bottom-4 left-4 z-10 flex gap-2">
+          <button onClick={handleResetCamera} className="rounded-xl px-3 py-2 border border-slate-700 bg-slate-800/60 text-sm">
             Reset Camera
           </button>
         </div>
