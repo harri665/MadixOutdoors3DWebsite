@@ -73,7 +73,7 @@ function createCameraQueue() {
 /** ===== Predefined camera paths ===== */
 const FLY_POSES = [
   { position: new THREE.Vector3(0, 0.8, -7), target: new THREE.Vector3(0, 0.5, 0), duration: 2.0 },
-  { position: new THREE.Vector3(0, 0.8, -1), target: new THREE.Vector3(0, 0.8, 0), duration: 2.5 },
+  { position: new THREE.Vector3(0, .1, -1.4), target: new THREE.Vector3(0, 2, 0), duration: 2.5 },
 ];
 
 /** ===== Scroll Sections (DOM) → drive scrubbing + camera poses via events ===== */

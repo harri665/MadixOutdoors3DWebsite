@@ -675,7 +675,7 @@ function AnnotationOverlays() {
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-15">
+    <div className="fixed inset-0  z-15">
       {annotations.map((annotation, index) => {
         if (!annotation.visible || !annotation.screenPosition) return null;
 
