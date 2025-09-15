@@ -100,10 +100,10 @@ export function CameraRig({ rigRef, initialTarget = new THREE.Vector3(0, 0, 0) }
       enableRotate={false}
       enableZoom={false}
       enableKeys={false}
-      mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }}
-      touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.PAN }}
-      panSpeed={0.8}
-      screenSpacePanning={true}
+      enablePan={false}
+      mouseButtons={{}}
+      touches={{}}
+      screenSpacePanning={false}
     />
   );
 }

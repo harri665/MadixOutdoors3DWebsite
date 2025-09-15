@@ -112,7 +112,15 @@ export default function App() {
         <Canvas 
           shadows 
           camera={{ fov: 45, near: 0.1, far: 200, position: CAMERAS.idle.position.toArray() }}
-          style={{ touchAction: 'none' }}
+          style={{ 
+            touchAction: 'none',
+            pointerEvents: 'none',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%'
+          }}
         >
           <Suspense fallback={null}>
             <CameraRig rigRef={rigRef} initialTarget={CAMERAS.idle.target} />

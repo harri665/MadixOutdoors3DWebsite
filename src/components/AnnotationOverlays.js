@@ -116,9 +116,6 @@ export function AnnotationOverlays() {
               <div className="text-sm text-slate-300 leading-relaxed mb-3">
                 {annotation.description}
               </div>
-              <div className="text-xs text-slate-500 font-mono border-t border-white/10 pt-2">
-                Target: {annotation.objectName}
-              </div>
               
               {/* Connection indicator dot */}
               <div 
@@ -140,18 +137,6 @@ export function AnnotationOverlays() {
                 zIndex: 20
               }}
             />
-            
-            {/* Debug info */}
-            <div
-              className="absolute text-xs text-yellow-400 bg-black/50 p-1 rounded"
-              style={{
-                left: clampedX + 10,
-                top: clampedY + 10,
-                zIndex: 25
-              }}
-            >
-              {Math.round(clampedX)}, {Math.round(clampedY)}
-            </div>
           </div>
         );
       })}
