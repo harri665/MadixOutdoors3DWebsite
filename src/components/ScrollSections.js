@@ -119,9 +119,9 @@ function createAnimator(api) {
  *  Predefined camera path
  * ========================= */
 const FLY_POSES = [
-  { position: new THREE.Vector3(0, 0.8, -7), target: new THREE.Vector3(0, 0.5, 0), duration: 2.0 },
-  { position: new THREE.Vector3(0, 0.6, -1.4), target: new THREE.Vector3(0, 2, 0),   duration: 1.0 },
-  { position: new THREE.Vector3(0, 0.6, -1.4),   target: new THREE.Vector3(0, 2, 0),   duration: 1.0 },
+  { position: new THREE.Vector3(0, 0.8, -7), target: new THREE.Vector3(0, 0.5, 0), moveDuration: .1, holdDuration: 0 },
+  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2, 0), moveDuration: .2, holdDuration: 1.2 },
+  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2, 0), moveDuration: 0, holdDuration: 0 },
 ];
 
 /* =========================
@@ -143,6 +143,7 @@ export function ScrollSections() {
   const appliedGeo1Ref = useRef(false);
   const section6AnimTriggered = useRef(false);
   const section6AnimationRef = useRef(null);
+  const section5FlythroughRef = useRef({ triggered: false, startTime: 0, currentPose: 0 });
 
   // systems
   const camQRef = useRef(null);
@@ -283,7 +284,7 @@ export function ScrollSections() {
         lastActiveCamera = pose;
       }
 
-      // 5: Flythrough
+      // 5: Flythrough - Cinematic sequence independent of scroll speed
       if (s5 > 0 && s5 <= 1) {
         show3in(false);
         setGeo1Style(false); // Ensure geo1 has opacity = 1.0 for flythrough
@@ -291,10 +292,74 @@ export function ScrollSections() {
         if (api.clipNames.includes("BackWindow")) E.push({ name: "BackWindow", t: 1 });
         if (api.clipNames.includes("Side")) E.push({ name: "Side", t: 1 });
 
-        const pose = interpolatePose(FLY_POSES, s5);
-        if (pose) {
-          queueCam({ position: pose.position, target: pose.target }, { baseDuration: isFastScroll ? 0.9 : 2.2 });
-          lastActiveCamera = { position: pose.position, target: pose.target };
+        // Trigger cinematic flythrough once when entering section 5
+        if (!section5FlythroughRef.current.triggered) {
+          section5FlythroughRef.current.triggered = true;
+          section5FlythroughRef.current.startTime = performance.now();
+          section5FlythroughRef.current.currentPose = 0;
+          
+          // Start the cinematic sequence
+          const runCinematicFlythrough = () => {
+            const now = performance.now();
+            const elapsed = (now - section5FlythroughRef.current.startTime) / 1000; // seconds
+            const flythrough = section5FlythroughRef.current;
+            
+            if (flythrough.currentPose >= FLY_POSES.length) {
+              return; // Sequence complete
+            }
+            
+            const currentPoseData = FLY_POSES[flythrough.currentPose];
+            let totalTimeForThisPose = 0;
+            
+            // Calculate total time used by previous poses
+            for (let i = 0; i < flythrough.currentPose; i++) {
+              totalTimeForThisPose += FLY_POSES[i].moveDuration + FLY_POSES[i].holdDuration;
+            }
+            
+            const timeInCurrentPose = elapsed - totalTimeForThisPose;
+            
+            if (timeInCurrentPose <= currentPoseData.moveDuration) {
+              // Currently moving to this pose
+              queueCam(
+                { 
+                  position: currentPoseData.position, 
+                  target: currentPoseData.target 
+                }, 
+                { 
+                  baseDuration: currentPoseData.moveDuration,
+                  immediate: false 
+                }
+              );
+            } else if (timeInCurrentPose <= currentPoseData.moveDuration + currentPoseData.holdDuration) {
+              // Currently holding at this pose - keep camera steady
+              queueCam(
+                { 
+                  position: currentPoseData.position, 
+                  target: currentPoseData.target 
+                }, 
+                { 
+                  baseDuration: 0.1, // Small duration to maintain position
+                  immediate: false 
+                }
+              );
+            } else {
+              // Move to next pose
+              flythrough.currentPose++;
+            }
+            
+            // Continue the sequence if still in section 5 and not complete
+            if (s5 > 0 && flythrough.currentPose < FLY_POSES.length) {
+              requestAnimationFrame(runCinematicFlythrough);
+            }
+          };
+          
+          runCinematicFlythrough();
+        }
+        
+        // Update lastActiveCamera for reference
+        if (section5FlythroughRef.current.currentPose < FLY_POSES.length) {
+          const currentPose = FLY_POSES[section5FlythroughRef.current.currentPose];
+          lastActiveCamera = { position: currentPose.position, target: currentPose.target };
         }
       }
 
@@ -332,6 +397,13 @@ export function ScrollSections() {
       if (s6 === 0 && section6AnimTriggered.current) {
         section6AnimTriggered.current = false;
         section6AnimationRef.current = null;
+      }
+      
+      // Reset Section 5 flythrough when leaving section 5
+      if (s5 === 0 && section5FlythroughRef.current.triggered) {
+        section5FlythroughRef.current.triggered = false;
+        section5FlythroughRef.current.startTime = 0;
+        section5FlythroughRef.current.currentPose = 0;
       }
 
       if (E.length > 0) {
@@ -419,7 +491,7 @@ export function ScrollSections() {
       {/* 4 */}
       <section ref={sect4Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
       {/* 5 */}
-      <section ref={sect5Ref} className="min-h-[300vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      <section ref={sect5Ref} className="min-h-[350vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
       {/* 6 */}
       <section ref={sect6Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
       <section className="px-6 py-24 border-slate-800 relative z-20"><div /></section>
