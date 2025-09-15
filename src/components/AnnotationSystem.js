@@ -13,12 +13,20 @@ export function AnnotationSystem() {
 
   // Define annotation targets for each section
   const annotationTargets = {
-    1: [{ objectName: "Plane009", text: "Quick Setup Frame", description: "Revolutionary folding mechanism for rapid deployment" }],
-    2: [{ objectName: "geo1", text: "Smart Entry Door", description: "Multi-access door with integrated window system" }],
-    3: [{ objectName: "Plane005", text: "Comfort Sleep Surface", description: "Ergonomic mattress with pressure point relief" }],
-    4: [{ objectName: "Plane005", text: "Side Ventilation Panel", description: "Intelligent airflow management system" }],
-    5: [{ objectName: "Plane015", text: "Structural Framework", description: "Engineering excellence in modular design" }],
-    6: []
+    1: [{ objectName: "Plane009", text: "Hard Shell Pop-Up Tent", description: "Solid ⅛\" formed aluminum sheet roof with quick pop-up trigger pull system. 4 Season Rated Tent with full standing room inside." }],
+    2: [{ objectName: "geo1", text: "3 Zippered Access Points", description: "3 zippered windows & doors (2 side, 1 rear) with internal secure latch system. No exterior latches for enhanced security." }],
+    3: [{ objectName: "Plane005", text: "Premium Mattress System", description: "2\" foam mattress with cover and anti-condensation mat. 96\" sleeping area, 101\" overall length for maximum comfort." }],
+    4: [{ objectName: "Plane005", text: "Side Hatches & Storage", description: "Compression lock system with 3.5\" expanded sides for storage of gear & accessories on optional MOLLE panel system (no loss of interior space)." }],
+    5: [{ 
+      objectName: "Plane015", 
+      text: "Complete Interior Features", 
+      description: "Light grey suede roof finish, suede padded headliner with 1\" foam insulation in ceiling, interior LED light strip, removable tent fabric, and gas strut assisted operation."
+    }],
+    6: [{ 
+      objectName: "Plane015", 
+      text: "Rear Hatch & Access", 
+      description: "Compression lock system with tinted rear acrylic window. Pass-through access with tilt-up bed panels for full truck bed use."
+    }]
   };
 
   // Subscribe to scene group updates

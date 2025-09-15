@@ -27,6 +27,17 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
       if (o.isMesh) {
         o.castShadow = true;
         o.receiveShadow = true;
+        
+        // Make materials double-sided
+        if (o.material) {
+          if (Array.isArray(o.material)) {
+            o.material.forEach((mat) => {
+              mat.side = THREE.DoubleSide;
+            });
+          } else {
+            o.material.side = THREE.DoubleSide;
+          }
+        }
       }
     });
   }, [scene]);
@@ -164,16 +175,8 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
       if (!animationStartedRef.current) {
         console.log("Starting animations once in section 5");
         const sideAction = actions["Side"];
-        const backWindowActionName = Object.keys(actions).find((name) => {
-          const lowerName = name.toLowerCase();
-          return (
-            lowerName.includes("backwindow") ||
-            lowerName.includes("back_window") ||
-            lowerName.includes("back-window") ||
-            lowerName === "backwindow" ||
-            lowerName.includes("window")
-          );
-        });
+        const doorAction = actions["Door"];
+        const backWindowAction = actions["BackWindow"];
 
         // Disable all other actions first
         Object.values(actions).forEach((a) => {
@@ -183,6 +186,17 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
           a.stop();
         });
 
+        if (doorAction) {
+          doorAction.reset();
+          doorAction.enabled = true;
+          doorAction.weight = 1;
+          doorAction.paused = false;
+          doorAction.setLoop(THREE.LoopOnce);
+          doorAction.clampWhenFinished = true;
+          doorAction.play();
+          console.log("Started Door animation once");
+        }
+        
         if (sideAction) {
           sideAction.reset();
           sideAction.enabled = true;
@@ -193,8 +207,8 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
           sideAction.play();
           console.log("Started Side animation once");
         }
-        if (backWindowActionName && actions[backWindowActionName]) {
-          const backWindowAction = actions[backWindowActionName];
+        
+        if (backWindowAction) {
           backWindowAction.reset();
           backWindowAction.enabled = true;
           backWindowAction.weight = 1;
@@ -202,7 +216,7 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
           backWindowAction.setLoop(THREE.LoopOnce);
           backWindowAction.clampWhenFinished = true;
           backWindowAction.play();
-          console.log(`Started ${backWindowActionName} animation once`);
+          console.log("Started BackWindow animation once");
         }
         animationStartedRef.current = true;
       }

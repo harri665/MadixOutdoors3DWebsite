@@ -2,14 +2,16 @@ import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { useAnimationAPI } from "../hooks/useAnimationAPI";
 
-/** ===== Distance-aware, de-jittered camera dispatcher ===== */
-const CAM_EPS = 0.005;           // minimum change before we send a new pose
-const CAM_MIN_DUR = 0.6;         // seconds
-const CAM_MAX_DUR = 4.0;         // seconds
-const CAM_DIST_TO_DUR = 1.2;     // scale distance to duration
+/* =========================
+ *  Camera pose helpers
+ * ========================= */
+const CAM_EPS = 0.005;    // minimum change before we send a new pose
+const CAM_MIN_DUR = 0.6;  // seconds
+const CAM_MAX_DUR = 4.0;  // seconds
+const CAM_DIST_TO_DUR = 1.2;
 
 function vec3From(v) {
-  return v instanceof THREE.Vector3 ? v.clone() : new THREE.Vector3().fromArray(v);
+  return v instanceof THREE.Vector3 ? v.clone() : new THREE.Vector3().fromArray(Array.isArray(v) ? v : [0,0,0]);
 }
 function poseDistance(a, b) {
   if (!a || !b) return Infinity;
@@ -17,7 +19,6 @@ function poseDistance(a, b) {
   const bp = vec3From(b.position), bt = vec3From(b.target);
   return ap.distanceTo(bp) + at.distanceTo(bt);
 }
-
 function createCameraQueue() {
   const state = {
     lastSent: null,
@@ -28,34 +29,28 @@ function createCameraQueue() {
   const dispatch = ({ position, target, duration, immediate }) => {
     const pos = position instanceof THREE.Vector3 ? position.toArray() : position;
     const tar = target instanceof THREE.Vector3 ? target.toArray() : target;
-    window.dispatchEvent(
-      new CustomEvent("setCameraPose", {
-        detail: { position: pos, target: tar, duration, immediate },
-      })
-    );
+    window.dispatchEvent(new CustomEvent("setCameraPose", { detail: { position: pos, target: tar, duration, immediate } }));
   };
 
   const flush = () => {
     state.raf = 0;
     if (!state.pending) return;
 
-    const { pose, baseDuration, immediate } = state.pending;
+    const { pose, baseDuration = 2.0, immediate = false } = state.pending;
     const delta = poseDistance(state.lastSent, pose);
 
-    // Dedup small movements to avoid spam / micro-jitters
     if (!state.lastSent || delta > CAM_EPS) {
       const durFromDelta = THREE.MathUtils.clamp(delta * CAM_DIST_TO_DUR, CAM_MIN_DUR, CAM_MAX_DUR);
-      const finalDuration = Math.max(baseDuration ?? 0, durFromDelta); // respect a larger provided duration
+      const finalDuration = Math.max(baseDuration ?? 0, durFromDelta);
       dispatch({ ...pose, duration: immediate ? 0 : finalDuration, immediate });
       state.lastSent = { position: vec3From(pose.position), target: vec3From(pose.target), duration: finalDuration };
     }
-
     state.pending = null;
   };
 
   return {
-    queue(pose, { baseDuration = 2.0, immediate = false } = {}) {
-      state.pending = { pose, baseDuration, immediate };
+    queue(pose, opts = {}) {
+      state.pending = { pose, ...opts };
       if (!state.raf) state.raf = requestAnimationFrame(flush);
     },
     reset() {
@@ -66,19 +61,76 @@ function createCameraQueue() {
     },
     get last() {
       return state.lastSent;
-    }
+    },
   };
 }
 
-/** ===== Predefined camera paths ===== */
+/* =========================
+ *  Universal Animation System (JS)
+ * ========================= */
+function createAnimator(api) {
+  const tweens = new Map();
+
+  function scrub(entries, exclusive = true) {
+    if (!entries || entries.length === 0) return;
+    api.scrub(entries, exclusive);
+  }
+
+  function tweenTo(name, from, to, ms) {
+    const existing = tweens.get(name);
+    if (existing) existing.cancel();
+
+    let raf = 0;
+    const start = performance.now();
+    const loop = () => {
+      const now = performance.now();
+      const p = Math.min(1, (now - start) / ms);
+      const t = from + (to - from) * p;
+      api.scrub([{ name, t }], false); // non-exclusive
+      if (p < 1) {
+        raf = requestAnimationFrame(loop);
+      } else {
+        tweens.delete(name);
+      }
+    };
+    raf = requestAnimationFrame(loop);
+
+    const cancel = () => {
+      if (raf) cancelAnimationFrame(raf);
+      tweens.delete(name);
+    };
+    tweens.set(name, { cancel });
+  }
+
+  function cancel(name) {
+    const tw = tweens.get(name);
+    if (tw) tw.cancel();
+  }
+
+  function cancelAll() {
+    tweens.forEach(({ cancel }) => cancel());
+    tweens.clear();
+  }
+
+  return { scrub, tweenTo, cancel, cancelAll };
+}
+
+/* =========================
+ *  Predefined camera path
+ * ========================= */
 const FLY_POSES = [
   { position: new THREE.Vector3(0, 0.8, -7), target: new THREE.Vector3(0, 0.5, 0), duration: 2.0 },
-  { position: new THREE.Vector3(0, .1, -1.4), target: new THREE.Vector3(0, 2, 0), duration: 2.5 },
+  { position: new THREE.Vector3(0, 0.6, -1.4), target: new THREE.Vector3(0, 2, 0),   duration: 1.0 },
+  { position: new THREE.Vector3(0, 0.6, -1.4),   target: new THREE.Vector3(0, 2, 0),   duration: 1.0 },
 ];
 
-/** ===== Scroll Sections (DOM) → drive scrubbing + camera poses via events ===== */
+/* =========================
+ *  Scroll → Animation/Camera
+ * ========================= */
 export function ScrollSections() {
   const api = useAnimationAPI();
+
+  // sections
   const sect1Ref = useRef(null);
   const sect2Ref = useRef(null);
   const sect3Ref = useRef(null);
@@ -86,110 +138,70 @@ export function ScrollSections() {
   const sect5Ref = useRef(null);
   const sect6Ref = useRef(null);
 
+  // names/state
   const doorNameRef = useRef(null);
   const appliedGeo1Ref = useRef(false);
-  const tentCloseAnimRef = useRef({ started: false, completed: false, startTime: 0 });
+  const section6AnimTriggered = useRef(false);
+  const section6AnimationRef = useRef(null);
 
-  // Camera queue for smooth, de-jittered transitions
+  // systems
   const camQRef = useRef(null);
+  const animatorRef = useRef(null);
   if (!camQRef.current) camQRef.current = createCameraQueue();
+  if (!animatorRef.current) animatorRef.current = createAnimator(api);
 
-  // Pick a door clip once we know the names
+  // helpers (materials/visibility)
+  const setGeo1Style = (active) => {
+    if (!api.group?.current) return;
+    api.group.current.traverse((child) => {
+      if (child.name === "geo1" && child.material) {
+        const setMat = (m) => {
+          m.transparent = active;
+          m.opacity = active ? 0.5 : 1.0;
+          m.color.setHex(active ? 0xc39718 : 0xffffff);
+          m.needsUpdate = true;
+        };
+        Array.isArray(child.material) ? child.material.forEach(setMat) : setMat(child.material);
+      }
+    });
+    appliedGeo1Ref.current = active;
+  };
+  const show3in = (on) => {
+    if (!api.group?.current) return;
+    api.group.current.traverse((child) => {
+      if (child.name === "3in") child.visible = on;
+    });
+  };
+
+  // pick a door clip when names arrive
   useEffect(() => {
     if (!api.clipNames || api.clipNames.length === 0) return;
-    const door = api.clipNames.find((n) => n.toLowerCase().includes("door"));
+    const door = api.clipNames.find((n) => n.toLowerCase().includes("door") || n === "Door");
     doorNameRef.current = door || null;
   }, [api.clipNames]);
 
-  const applyGeo1Style = () => {
-    if (!api.group || !api.group.current) return;
-    if (appliedGeo1Ref.current) return;
-    api.group.current.traverse((child) => {
-      if (child.name === "geo1" && child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((mat) => {
-            mat.transparent = true;
-            mat.opacity = 0.5;
-            mat.color.setHex(0xc39718);
-            mat.needsUpdate = true;
-          });
-        } else {
-          child.material.transparent = true;
-          child.material.opacity = 0.5;
-          child.material.color.setHex(0xc39718);
-          child.material.needsUpdate = true;
-        }
-      }
-    });
-    appliedGeo1Ref.current = true;
-  };
-
-  const resetGeo1Style = () => {
-    if (!api.group || !api.group.current) return;
-    api.group.current.traverse((child) => {
-      if (child.name === "geo1" && child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((mat) => {
-            mat.transparent = false;
-            mat.opacity = 1.0;
-            mat.color.setHex(0xffffff);
-            mat.needsUpdate = true;
-          });
-        } else {
-          child.material.transparent = false;
-          child.material.opacity = 1.0;
-          child.material.color.setHex(0xffffff);
-          child.material.needsUpdate = true;
-        }
-      }
-    });
-    appliedGeo1Ref.current = false;
-  };
-
-  const show3inObject = () => {
-    if (!api.group || !api.group.current) return;
-    api.group.current.traverse((child) => {
-      if (child.name === "3in") {
-        child.visible = true;
-      }
-    });
-  };
-
-  const hide3inObject = () => {
-    if (!api.group || !api.group.current) return;
-    api.group.current.traverse((child) => {
-      if (child.name === "3in") {
-        child.visible = false;
-      }
-    });
-  };
-
   useEffect(() => {
+    const animator = animatorRef.current;
+    const camQ = camQRef.current;
+
     let lastScrollTime = 0;
-    let lastS1 = 0, lastS2 = 0, lastS3 = 0, lastS4 = 0, lastS5 = 0, lastS6 = 0;
     let lastSection = -1;
     let lastActiveCamera = null;
     let tentHasBeenClosed = false;
 
-    // Ensure tent starts fully open on initial load - animation0 must be complete
+    let lastS1 = 0, lastS2 = 0, lastS3 = 0, lastS4 = 0, lastS5 = 0, lastS6 = 0;
+
     const ensureInitialOpenState = () => {
       if (api.clipNames.length > 0) {
         const openEntries = [];
-        if (api.clipNames.includes("animation0")) {
-          openEntries.push({ name: "animation0", t: 1 });
-        }
-        if (api.clipNames.includes("TentOPENCLOSE")) {
-          openEntries.push({ name: "TentOPENCLOSE", t: 1 });
-        }
-        if (openEntries.length > 0) api.scrub(openEntries, true);
+        if (api.clipNames.includes("animation0")) openEntries.push({ name: "animation0", t: 1 });
+        if (api.clipNames.includes("TentOPENCLOSE")) openEntries.push({ name: "TentOPENCLOSE", t: 1 });
+        if (openEntries.length > 0) animator.scrub(openEntries, true);
       }
-      // Hide 3in object initially
-      hide3inObject();
+      show3in(false);
     };
 
-    const queueCam = (pose, { baseDuration = 2.0, immediate = false } = {}) => {
-      camQRef.current.queue(pose, { baseDuration, immediate });
-    };
+    const queueCam = (pose, opts = {}) => camQ.queue(pose, opts);
 
     const onScroll = () => {
       const now = performance.now();
@@ -202,18 +214,12 @@ export function ScrollSections() {
 
       const deltaTime = now - lastScrollTime;
       const maxDelta = Math.max(
-        Math.abs(s1 - lastS1),
-        Math.abs(s2 - lastS2),
-        Math.abs(s3 - lastS3),
-        Math.abs(s4 - lastS4),
-        Math.abs(s5 - lastS5),
-        Math.abs(s6 - lastS6)
+        Math.abs(s1 - lastS1), Math.abs(s2 - lastS2), Math.abs(s3 - lastS3),
+        Math.abs(s4 - lastS4), Math.abs(s5 - lastS5), Math.abs(s6 - lastS6)
       );
       const isFastScroll = deltaTime > 0 && maxDelta / deltaTime > 0.001;
 
-      const entries = [];
-
-      // Section change detection
+      // active section?
       let currentSection = -1;
       if (s1 > 0 && s1 <= 1) currentSection = 1;
       else if (s2 > 0 && s2 <= 1) currentSection = 2;
@@ -222,168 +228,141 @@ export function ScrollSections() {
       else if (s5 > 0 && s5 <= 1) currentSection = 5;
       else if (s6 > 0 && s6 <= 1) currentSection = 6;
 
-      const isInTransition =
-        currentSection === -1 && (s1 > 0 || s2 > 0 || s3 > 0 || s4 > 0 || s5 > 0 || s6 > 0);
+      const isInTransition = currentSection === -1 && (s1 > 0 || s2 > 0 || s3 > 0 || s4 > 0 || s5 > 0 || s6 > 0);
 
       if (currentSection !== lastSection) {
         window.dispatchEvent(new CustomEvent("sectionChange", { detail: { section: currentSection } }));
         lastSection = currentSection;
       }
 
-      // === Section 1: Open/Setup Tent (reversed)
+      const E = [];
+
+      // 1: Open/Setup (reversed)
       if (s1 > 0 && s1 <= 1) {
-        const tRev = 1 - s1;
-        resetGeo1Style();
-        hide3inObject(); // Hide 3in object in section 1
-        if (api.clipNames.includes("animation0")) entries.push({ name: "animation0", t: Math.max(0, tRev) });
-        if (api.clipNames.includes("TentOPENCLOSE")) entries.push({ name: "TentOPENCLOSE", t: Math.max(0, tRev) });
+        setGeo1Style(false);
+        show3in(false);
+        const tRev = Math.max(0, 1 - s1);
+        if (api.clipNames.includes("animation0")) E.push({ name: "animation0", t: tRev });
+        if (api.clipNames.includes("TentOPENCLOSE")) E.push({ name: "TentOPENCLOSE", t: tRev });
         if (s1 >= 0.98) {
-          if (api.clipNames.includes("animation0")) entries.push({ name: "animation0", t: 0 });
-          if (api.clipNames.includes("TentOPENCLOSE")) entries.push({ name: "TentOPENCLOSE", t: 0 });
+          if (api.clipNames.includes("animation0")) E.push({ name: "animation0", t: 0 });
+          if (api.clipNames.includes("TentOPENCLOSE")) E.push({ name: "TentOPENCLOSE", t: 0 });
         }
         const pose = { position: new THREE.Vector3(3.2, 1.7, -3.6), target: new THREE.Vector3(0, 0.5, 0) };
-        queueCam(pose, { baseDuration: isFastScroll ? 1.2 : 3.5 }); // never immediate on scroll
+        queueCam(pose, { baseDuration: isFastScroll ? 1.2 : 3.5 });
         lastActiveCamera = pose;
       }
 
-      // === Section 2: Door + BackWindow
+      // 2: Door + BackWindow
       const door = doorNameRef.current;
       if (s2 > 0 && s2 <= 1) {
-        applyGeo1Style();
-        hide3inObject(); // Hide 3in object in section 2
-        if (door) entries.push({ name: door, t: s2 });
-
-        const backWindowAnim = api.clipNames.find((name) => {
-          const lowerName = name.toLowerCase();
-          return (
-            lowerName.includes("backwindow") ||
-            lowerName.includes("back_window") ||
-            lowerName.includes("back-window") ||
-            lowerName === "backwindow" ||
-            lowerName.includes("window")
-          );
-        });
-        if (backWindowAnim) {
-          entries.push({ name: backWindowAnim, t: s2 });
-        } else {
-          const possibleWindowAnim = api.clipNames.find((name) =>
-            name.toLowerCase().includes("window") || name.toLowerCase().includes("back")
-          );
-          if (possibleWindowAnim) entries.push({ name: possibleWindowAnim, t: s2 });
-        }
-
+        setGeo1Style(true);
+        show3in(false);
+        if (door) E.push({ name: door, t: s2 });
+        if (api.clipNames.includes("BackWindow")) E.push({ name: "BackWindow", t: s2 });
         const pose = { position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) };
         queueCam(pose, { baseDuration: isFastScroll ? 1.0 : 3.0 });
         lastActiveCamera = pose;
       }
 
-      // === Section 3: Mattress (same camera as section 2)
+      // 3: Mattress (same cam as 2)
       if (s3 > 0 && s3 <= 1) {
-        applyGeo1Style();
-        show3inObject(); // Show 3in object ONLY in section 3 (mattress animation)
+        setGeo1Style(true);
+        show3in(true);
         const pose = { position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) };
         queueCam(pose, { baseDuration: isFastScroll ? 1.0 : 3.0 });
         lastActiveCamera = pose;
       }
 
-      // === Section 4: Side Animation
+      // 4: Side
       if (s4 > 0 && s4 <= 1) {
-        hide3inObject(); // Hide 3in object in section 4
-        if (api.clipNames.includes("Side")) entries.push({ name: "Side", t: s4 });
+        show3in(false);
+        if (api.clipNames.includes("Side")) E.push({ name: "Side", t: s4 });
         const pose = { position: new THREE.Vector3(0, 1.5, -5), target: new THREE.Vector3(0, 0, 0) };
         queueCam(pose, { baseDuration: isFastScroll ? 1.2 : 3.5 });
         lastActiveCamera = pose;
       }
 
-      // === Section 5: Flythrough
+      // 5: Flythrough
       if (s5 > 0 && s5 <= 1) {
-        hide3inObject(); // Hide 3in object in section 5
+        show3in(false);
+        setGeo1Style(false); // Ensure geo1 has opacity = 1.0 for flythrough
+        if (api.clipNames.includes("Door")) E.push({ name: "Door", t: 1 });
+        if (api.clipNames.includes("BackWindow")) E.push({ name: "BackWindow", t: 1 });
+        if (api.clipNames.includes("Side")) E.push({ name: "Side", t: 1 });
+
         const pose = interpolatePose(FLY_POSES, s5);
         if (pose) {
-          queueCam(pose, { baseDuration: isFastScroll ? 0.9 : 2.2 });
-          lastActiveCamera = pose;
+          queueCam({ position: pose.position, target: pose.target }, { baseDuration: isFastScroll ? 0.9 : 2.2 });
+          lastActiveCamera = { position: pose.position, target: pose.target };
         }
       }
 
-      // === Section 6: Return to Starting Position (Full Circle)
+      // 6: Return / close Side + BackWindow over 2s, reset others
       if (s6 > 0 && s6 <= 1) {
-        hide3inObject(); // Hide 3in object in section 6
-        resetGeo1Style(); // Reset geo1 material to original state
-        
-        // Reset all animations to their initial state (tent fully closed at end)
-        const resetEntries = [];
-        if (api.clipNames.includes("animation0")) {
-          resetEntries.push({ name: "animation0", t: 0 }); // animation0 at 0 (tent closed)
+        show3in(false);
+        setGeo1Style(false);
+
+        if (!section6AnimTriggered.current) {
+          section6AnimTriggered.current = true;
+
+          const sideAnim = api.clipNames.includes("Side") ? "Side" : null;
+          const backWindowAnim = api.clipNames.includes("BackWindow") ? "BackWindow" : null;
+
+          if (backWindowAnim) animator.tweenTo(backWindowAnim, 1, 0, 2000);
+          if (sideAnim) animator.tweenTo(sideAnim, 1, 0, 2000);
         }
-        if (api.clipNames.includes("TentOPENCLOSE")) {
-          resetEntries.push({ name: "TentOPENCLOSE", t: 0 }); // Fully closed
-        }
-        // Reset any door animations
-        const door = doorNameRef.current;
-        if (door) {
-          resetEntries.push({ name: door, t: 0 }); // Door closed/reset
-        }
-        // Reset window animations
-        const backWindowAnim = api.clipNames.find((name) => {
-          const lowerName = name.toLowerCase();
-          return (
-            lowerName.includes("backwindow") ||
-            lowerName.includes("back_window") ||
-            lowerName.includes("back-window") ||
-            lowerName === "backwindow" ||
-            lowerName.includes("window")
-          );
-        });
-        if (backWindowAnim) {
-          resetEntries.push({ name: backWindowAnim, t: 0 }); // Window closed/reset
-        }
-        // Reset side animation
-        if (api.clipNames.includes("Side")) {
-          resetEntries.push({ name: "Side", t: 0 }); // Side animation reset
-        }
-        
-        entries.push(...resetEntries);
-        
-        // Return to the same position as the starting/idle position for a full circle
+
+        // Ensure BackWindow and Side are closed in Section 6
+        if (api.clipNames.includes("BackWindow")) E.push({ name: "BackWindow", t: 0 });
+        if (api.clipNames.includes("Side")) E.push({ name: "Side", t: 0 });
+
+        // Reset other animations immediately
+        if (api.clipNames.includes("animation0")) E.push({ name: "animation0", t: 0 });
+        if (api.clipNames.includes("TentOPENCLOSE")) E.push({ name: "TentOPENCLOSE", t: 0 });
+
+        const d = doorNameRef.current;
+        if (d) E.push({ name: d, t: 0 });
+
         const pose = { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) };
         queueCam(pose, { baseDuration: isFastScroll ? 1.5 : 4.0 });
         lastActiveCamera = pose;
       }
 
-      if (entries.length > 0) {
-        api.scrub(entries, true);
+      if (s6 === 0 && section6AnimTriggered.current) {
+        section6AnimTriggered.current = false;
+        section6AnimationRef.current = null;
+      }
+
+      if (E.length > 0) {
+        animator.scrub(E, true);
       } else {
-        // manage tent state based on current section
         if (tentHasBeenClosed && s2 === 0 && s3 === 0 && s4 === 0 && s5 === 0 && s6 === 0) {
           const closeEntries = [];
           if (api.clipNames.includes("animation0")) closeEntries.push({ name: "animation0", t: 0 });
           if (api.clipNames.includes("TentOPENCLOSE")) closeEntries.push({ name: "TentOPENCLOSE", t: 0 });
-          if (closeEntries.length > 0) api.scrub(closeEntries, true);
+          if (closeEntries.length > 0) animator.scrub(closeEntries, true);
           else window.dispatchEvent(new Event("clearScrub"));
         } else {
           window.dispatchEvent(new Event("clearScrub"));
         }
 
-        // Idle camera only when fully outside all sections (avoid mid-transition snaps)
-        const allSectionsInactive = s1 === 0 && s2 === 0 && s3 === 0 && s4 === 0 && s5 === 0 && s6 === 0;
-        if (allSectionsInactive && !isInTransition) {
-          hide3inObject(); // Hide 3in object when idle
+        const allInactive = s1 === 0 && s2 === 0 && s3 === 0 && s4 === 0 && s5 === 0 && s6 === 0;
+        if (allInactive && !isInTransition) {
+          show3in(false);
           const pose = { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) };
           queueCam(pose, { baseDuration: 4.0 });
           lastActiveCamera = pose;
-        } else if (isInTransition && lastActiveCamera) {
-          // keep last active pose during transitions; smoothing handles micro-movements
         }
-
-        if (s2 === 0 && s3 === 0) resetGeo1Style();
+        if (s2 === 0 && s3 === 0 && appliedGeo1Ref.current) setGeo1Style(false);
       }
 
       lastScrollTime = now;
       lastS1 = s1; lastS2 = s2; lastS3 = s3; lastS4 = s4; lastS5 = s5; lastS6 = s6;
-
       if (s1 >= 0.98) tentHasBeenClosed = true;
     };
 
+    // throttle scroll handler
     let scrollTimeout;
     const throttledScroll = () => {
       if (scrollTimeout) return;
@@ -392,16 +371,16 @@ export function ScrollSections() {
         scrollTimeout = null;
       }, 8);
     };
+
     const onResize = () => onScroll();
 
     if (typeof window !== "undefined" && window.addEventListener) {
       window.addEventListener("scroll", throttledScroll, { passive: true });
       window.addEventListener("resize", onResize);
 
-      // Initial camera: do a single "immediate" snap once so we start from a known baseline,
-      // then all subsequent movements are smoothed.
-      camQRef.current.reset();
-      camQRef.current.queue(
+      // baseline camera: immediate snap to idle
+      camQ.reset();
+      camQ.queue(
         { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) },
         { baseDuration: 0, immediate: true }
       );
@@ -413,74 +392,57 @@ export function ScrollSections() {
         window.removeEventListener("scroll", throttledScroll);
         window.removeEventListener("resize", onResize);
         if (scrollTimeout) clearTimeout(scrollTimeout);
-        camQRef.current.reset();
+        camQ.reset();
+        animator.cancelAll();
       };
     }
   }, [api]);
 
-  // --- if clips arrive late, ensure proper initialization (hook reserved) ---
+  // (Optional) live tick; placeholder to mirror tween state if you later store it
   useEffect(() => {
-    if (api.clipNames.length === 0) return;
-  }, [api.clipNames]);
+    let raf = 0;
+    const tick = () => { raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, []);
 
   return (
     <main className="relative z-10">
-      <div className="absolute inset-0 w-full h-full"></div>
-      <section className="px-6 py-16 max-w-3xl mx-auto relative z-20"></section>
-
-      {/* Section 1: Open/Setup */}
-      <section ref={sect1Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
-        <div></div>
-      </section>
-
-      {/* Section 2: Door */}
-      <section ref={sect2Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
-        <div></div>
-      </section>
-
-      {/* Section 3: Mattress Animation */}
-      <section ref={sect3Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
-        <div></div>
-      </section>
-
-      {/* Section 4: Side Animation */}
-      <section ref={sect4Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
-        <div></div>
-      </section>
-
-      {/* Section 5: Flythrough */}
-      <section ref={sect5Ref} className="min-h-[250vh] px-6 py-24 border-slate-800 relative z-20">
-        <div></div>
-      </section>
-
-      {/* Section 6: New Scene */}
-      <section ref={sect6Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20">
-        <div></div>
-      </section>
-
-      <section className="px-6 py-24 border-slate-800 relative z-20">
-        <div></div>
-      </section>
+      <div className="absolute inset-0 w-full h-full" />
+      <section className="px-6 py-16 max-w-3xl mx-auto relative z-20" />
+      {/* 1 */}
+      <section ref={sect1Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      {/* 2 */}
+      <section ref={sect2Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      {/* 3 */}
+      <section ref={sect3Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      {/* 4 */}
+      <section ref={sect4Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      {/* 5 */}
+      <section ref={sect5Ref} className="min-h-[300vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      {/* 6 */}
+      <section ref={sect6Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      <section className="px-6 py-24 border-slate-800 relative z-20"><div /></section>
     </main>
   );
 }
 
-/**
- * Interpolate between an array of poses with smooth Catmull–Rom curves and duration-aware timing.
- */
+/* =========================
+ *  Pose interpolation (JS)
+ * ========================= */
 const _curveCache = new WeakMap();
 function interpolatePose(poses, t) {
   if (!poses || poses.length === 0) return null;
-  if (poses.length === 1) return poses[0];
+  if (poses.length === 1) return { ...poses[0], duration: poses[0].duration ?? 1 };
 
   let rec = _curveCache.get(poses);
   if (!rec || rec.count !== poses.length) {
-    const p = poses.map((p) => p.position.clone());
-    const q = poses.map((p) => p.target.clone());
-    const tension = 0.5; // centripetal
+    const p = poses.map((pp) => pp.position.clone());
+    const q = poses.map((pp) => pp.target.clone());
+    const tension = 0.5;
     const posCurve = new THREE.CatmullRomCurve3(p, false, "catmullrom", tension);
     const tarCurve = new THREE.CatmullRomCurve3(q, false, "catmullrom", tension);
-    const durations = poses.map((p) => Math.max(0.0001, p.duration ?? 1));
+    const durations = poses.map((pp) => Math.max(0.0001, pp.duration ?? 1));
     const total = durations.reduce((s, d) => s + d, 0);
     rec = { posCurve, tarCurve, durations, total, count: poses.length };
     _curveCache.set(poses, rec);
@@ -504,7 +466,9 @@ function interpolatePose(poses, t) {
   };
 }
 
-/** Utility: normalized progress 0..1 across a section's scroll span (returns 0 when offscreen) */
+/* =========================
+ *  Section progress helper
+ * ========================= */
 function progressFor(el) {
   if (!el) return 0;
   const rect = el.getBoundingClientRect();

@@ -45,11 +45,18 @@ export default function App() {
   const handleLoadingComplete = () => setIsLoading(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-slate-100">
+    <div 
+      className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-slate-100"
+      style={{ 
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'auto',
+        touchAction: 'pan-y' 
+      }}
+    >
       {/* Sticky Viewer Header */}
       <div className="sticky top-0 z-0 h-[100svh] border-b border-slate-800">
         <div className="absolute top-4 left-4 z-10 rounded-xl border border-slate-800/80 bg-black/40 px-3 py-2 text-sm font-semibold tracking-wide">
-          tent1 • Scroll to Animate
+          Scroll to Animate
         </div>
 
         {isLoading && (
@@ -102,7 +109,11 @@ export default function App() {
           </div>
         )}
 
-        <Canvas shadows camera={{ fov: 45, near: 0.1, far: 200, position: CAMERAS.idle.position.toArray() }}>
+        <Canvas 
+          shadows 
+          camera={{ fov: 45, near: 0.1, far: 200, position: CAMERAS.idle.position.toArray() }}
+          style={{ touchAction: 'none' }}
+        >
           <Suspense fallback={null}>
             <CameraRig rigRef={rigRef} initialTarget={CAMERAS.idle.target} />
             <Environment preset="city" background={false} />
@@ -115,12 +126,6 @@ export default function App() {
             <AnnotationSystem />
           </Suspense>
         </Canvas>
-
-        <div className="absolute bottom-4 left-4 z-10 flex gap-2">
-          <button onClick={handleResetCamera} className="rounded-xl px-3 py-2 border border-slate-700 bg-slate-800/60 text-sm">
-            Reset Camera
-          </button>
-        </div>
       </div>
 
       {/* 2D Annotation Overlays */}
