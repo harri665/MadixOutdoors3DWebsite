@@ -3,15 +3,15 @@ import * as THREE from "three";
 import { useAnimationAPI } from "../hooks/useAnimationAPI";
 
 /* =========================
- *  Camera pose helpers
+ * Camera pose helpers
  * ========================= */
-const CAM_EPS = 0.005;    // minimum change before we send a new pose
-const CAM_MIN_DUR = 0.6;  // seconds
-const CAM_MAX_DUR = 4.0;  // seconds
+const CAM_EPS = 0.005;
+const CAM_MIN_DUR = 0.6;
+const CAM_MAX_DUR = 4.0;
 const CAM_DIST_TO_DUR = 1.2;
 
 function vec3From(v) {
-  return v instanceof THREE.Vector3 ? v.clone() : new THREE.Vector3().fromArray(Array.isArray(v) ? v : [0,0,0]);
+  return v instanceof THREE.Vector3 ? v.clone() : new THREE.Vector3().fromArray(Array.isArray(v) ? v : [0, 0, 0]);
 }
 function poseDistance(a, b) {
   if (!a || !b) return Infinity;
@@ -20,25 +20,17 @@ function poseDistance(a, b) {
   return ap.distanceTo(bp) + at.distanceTo(bt);
 }
 function createCameraQueue() {
-  const state = {
-    lastSent: null,
-    pending: null,
-    raf: 0,
-  };
-
+  const state = { lastSent: null, pending: null, raf: 0 };
   const dispatch = ({ position, target, duration, immediate }) => {
     const pos = position instanceof THREE.Vector3 ? position.toArray() : position;
     const tar = target instanceof THREE.Vector3 ? target.toArray() : target;
     window.dispatchEvent(new CustomEvent("setCameraPose", { detail: { position: pos, target: tar, duration, immediate } }));
   };
-
   const flush = () => {
     state.raf = 0;
     if (!state.pending) return;
-
     const { pose, baseDuration = 2.0, immediate = false } = state.pending;
     const delta = poseDistance(state.lastSent, pose);
-
     if (!state.lastSent || delta > CAM_EPS) {
       const durFromDelta = THREE.MathUtils.clamp(delta * CAM_DIST_TO_DUR, CAM_MIN_DUR, CAM_MAX_DUR);
       const finalDuration = Math.max(baseDuration ?? 0, durFromDelta);
@@ -47,7 +39,6 @@ function createCameraQueue() {
     }
     state.pending = null;
   };
-
   return {
     queue(pose, opts = {}) {
       state.pending = { pose, ...opts };
@@ -59,100 +50,46 @@ function createCameraQueue() {
       state.pending = null;
       state.lastSent = null;
     },
-    get last() {
-      return state.lastSent;
-    },
+    get last() { return state.lastSent; },
   };
 }
 
 /* =========================
- *  Universal Animation System (JS)
+ * Universal Animator (time-based)
  * ========================= */
 function createAnimator(api) {
-  const tweens = new Map();
-
+  const tweens = new Map(); // name -> { cancel }
   function scrub(entries, exclusive = true) {
     if (!entries || entries.length === 0) return;
     api.scrub(entries, exclusive);
   }
-
   function tweenTo(name, from, to, ms) {
     const existing = tweens.get(name);
     if (existing) existing.cancel();
-
     let raf = 0;
     const start = performance.now();
     const loop = () => {
       const now = performance.now();
       const p = Math.min(1, (now - start) / ms);
       const t = from + (to - from) * p;
-      api.scrub([{ name, t }], false); // non-exclusive
-      if (p < 1) {
-        raf = requestAnimationFrame(loop);
-      } else {
-        tweens.delete(name);
-      }
+      api.scrub([{ name, t }], false);
+      if (p < 1) raf = requestAnimationFrame(loop);
+      else tweens.delete(name);
     };
     raf = requestAnimationFrame(loop);
-
-    const cancel = () => {
-      if (raf) cancelAnimationFrame(raf);
-      tweens.delete(name);
-    };
+    const cancel = () => { if (raf) cancelAnimationFrame(raf); tweens.delete(name); };
     tweens.set(name, { cancel });
   }
-
-  function cancel(name) {
-    const tw = tweens.get(name);
-    if (tw) tw.cancel();
-  }
-
-  function cancelAll() {
-    tweens.forEach(({ cancel }) => cancel());
-    tweens.clear();
-  }
-
+  function cancel(name) { const tw = tweens.get(name); if (tw) tw.cancel(); }
+  function cancelAll() { tweens.forEach(({ cancel }) => cancel()); tweens.clear(); }
   return { scrub, tweenTo, cancel, cancelAll };
 }
 
 /* =========================
- *  Predefined camera path
+ * Helpers that touch your scene graph (unchanged behavior)
  * ========================= */
-const FLY_POSES = [
-  { position: new THREE.Vector3(0, 0.8, -7), target: new THREE.Vector3(0, 0.5, 0), moveDuration: .1, holdDuration: 0 },
-  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2, 0), moveDuration: .2, holdDuration: 1.2 },
-  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2, 0), moveDuration: 0, holdDuration: 0 },
-];
-
-/* =========================
- *  Scroll → Animation/Camera
- * ========================= */
-export function ScrollSections() {
-  const api = useAnimationAPI();
-
-  // sections
-  const sect1Ref = useRef(null);
-  const sect2Ref = useRef(null);
-  const sect3Ref = useRef(null);
-  const sect4Ref = useRef(null);
-  const sect5Ref = useRef(null);
-  const sect6Ref = useRef(null);
-
-  // names/state
-  const doorNameRef = useRef(null);
-  const appliedGeo1Ref = useRef(false);
-  const section6AnimTriggered = useRef(false);
-  const section6AnimationRef = useRef(null);
-  const section5FlythroughRef = useRef({ triggered: false, startTime: 0, currentPose: 0 });
-
-  // systems
-  const camQRef = useRef(null);
-  const animatorRef = useRef(null);
-  if (!camQRef.current) camQRef.current = createCameraQueue();
-  if (!animatorRef.current) animatorRef.current = createAnimator(api);
-
-  // helpers (materials/visibility)
-  const setGeo1Style = (active) => {
+function makeSetGeo1Style(api) {
+  return (active) => {
     if (!api.group?.current) return;
     api.group.current.traverse((child) => {
       if (child.name === "geo1" && child.material) {
@@ -165,312 +102,389 @@ export function ScrollSections() {
         Array.isArray(child.material) ? child.material.forEach(setMat) : setMat(child.material);
       }
     });
-    appliedGeo1Ref.current = active;
   };
-  const show3in = (on) => {
+}
+function makeShow3in(api) {
+  return (on) => {
     if (!api.group?.current) return;
     api.group.current.traverse((child) => {
       if (child.name === "3in") child.visible = on;
     });
   };
+}
 
-  // pick a door clip when names arrive
-  useEffect(() => {
-    if (!api.clipNames || api.clipNames.length === 0) return;
-    const door = api.clipNames.find((n) => n.toLowerCase().includes("door") || n === "Door");
-    doorNameRef.current = door || null;
-  }, [api.clipNames]);
+/* =========================
+ * Clip resolution helpers
+ * ========================= */
+function resolveClipName(requested, clipNames) {
+  if (!requested || !clipNames) return null;
+  if (clipNames.includes(requested)) return requested;
+  const lower = requested.toLowerCase();
+  return clipNames.find((c) => c.toLowerCase().includes(lower)) || null;
+}
 
+/* =========================
+ * Camera flythrough poses (Section 5)
+ * ========================= */
+const FLY_POSES = [
+  { position: new THREE.Vector3(0, 0.8, -7),   target: new THREE.Vector3(0, 0.5, 0), moveDuration: .1, holdDuration: 0 },
+  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2,   0), moveDuration: .2, holdDuration: 1.2 },
+  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2,   0), moveDuration: 0,  holdDuration: 0 },
+];
+
+/* =========================================================
+ * CONFIG: Define what each section does (clips & camera)
+ * mode: "scrub" = map scroll progress to clip t (0..1)
+ *       "tween" = time-based play once per entry (from->to)
+ *       "snap"  = force a fixed t while in the section
+ * camera.mode: "fixed" | "timeline"
+ * ========================================================= */
+function buildSectionDefs(api, utils) {
+  const { setGeo1Style, show3in, resolve } = utils;
+  const door = resolve("Door"); // fuzzy door name once
+  return [
+    /* ===== 1. Open/Setup (reversed like before) ===== */
+    {
+      id: 1,
+      label: "Open/Setup",
+      actions: [
+        { mode: "scrub", clip: resolve("animation0"), map: (s) => Math.max(0, 1 - s) },
+        { mode: "scrub", clip: resolve("TentOPENCLOSE"), map: (s) => Math.max(0, 1 - s) },
+        // hard clamp to fully closed near the end (same as your ≥0.98)
+        { mode: "snap",  clip: resolve("animation0"), when: (s) => s >= 0.98, t: 0 },
+        { mode: "snap",  clip: resolve("TentOPENCLOSE"), when: (s) => s >= 0.98, t: 0 },
+      ],
+      onEnter: () => { setGeo1Style(false); show3in(false); },
+      onUpdate: () => {},
+      onExit: () => {},
+      camera: {
+        mode: "fixed",
+        getPose: () => ({ position: new THREE.Vector3(3.2, 1.7, -3.6), target: new THREE.Vector3(0, 0.5, 0) }),
+        baseDuration: (_, fast) => (fast ? 1.2 : 3.5),
+      },
+    },
+
+    /* ===== 2. Door + BackWindow (scroll-scrub) ===== */
+    {
+      id: 2,
+      label: "Door & BackWindow",
+      actions: [
+        { mode: "scrub", clip: door,                map: (s) => s },
+        // { mode: "scrub", clip: resolve("BackWindow"), map: (s) => s }, removed back window for animation 
+      ],
+      onEnter: () => { setGeo1Style(true); show3in(false); },
+      onUpdate: () => {},
+      onExit: () => {},
+      camera: {
+        mode: "fixed",
+        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) }),
+        baseDuration: (_, fast) => (fast ? 1.0 : 3.0),
+      },
+    },
+
+    /* ===== 3. Mattress (same camera as 2, show 3in) ===== */
+    {
+      id: 3,
+      label: "Mattress",
+      actions: [],
+      onEnter: () => { setGeo1Style(true); show3in(true); },
+      onUpdate: () => {},
+      onExit: () => { show3in(false); },
+      camera: {
+        mode: "fixed",
+        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) }),
+        baseDuration: (_, fast) => (fast ? 1.0 : 3.0),
+      },
+    },
+
+    /* ===== 4. Side (scroll-scrub) ===== */
+    {
+      id: 4,
+      label: "Side",
+      actions: [
+        { mode: "scrub", clip: resolve("Side"), map: (s) => s },
+      ],
+      onEnter: () => { show3in(false); },
+      onUpdate: () => {},
+      onExit: () => {},
+      camera: {
+        mode: "fixed",
+        getPose: () => ({ position: new THREE.Vector3(0, 1.5, -5), target: new THREE.Vector3(0, 0, 0) }),
+        baseDuration: (_, fast) => (fast ? 1.2 : 3.5),
+      },
+    },
+
+    /* ===== 5. Cinematic flythrough (independent of scroll) ===== */
+    {
+      id: 5,
+      label: "Flythrough",
+      actions: [
+        // hold these open while in the section
+        { mode: "snap", clip: door, t: 1 },
+        { mode: "snap", clip: resolve("BackWindow"), t: 1 },
+        { mode: "snap", clip: resolve("Side"), t: 1 },
+      ],
+      onEnter: () => { setGeo1Style(false); show3in(false); },
+      onUpdate: () => {},
+      onExit: () => {},
+      camera: {
+        mode: "timeline",
+        poses: FLY_POSES,
+      },
+    },
+
+    /* ===== 6. Return/Close side + back window (tween on enter) ===== */
+    {
+      id: 6,
+      label: "Return/Close",
+      actions: [
+        // Kick off time-based closes once when we ENTER section 6 (same as your tweenTo)
+        { mode: "tween", clip: resolve("BackWindow"), from: 1, to: 0, ms: 2000, trigger: "enter" },
+        { mode: "tween", clip: resolve("Side"),       from: 1, to: 0, ms: 2000, trigger: "enter" },
+
+        // And keep everything closed while we stay here
+        { mode: "snap", clip: resolve("BackWindow"), t: 0 },
+        { mode: "snap", clip: resolve("Side"),       t: 0 },
+
+        // Reset other animations immediately (like before)
+        { mode: "snap", clip: resolve("animation0"),    t: 0 },
+        { mode: "snap", clip: resolve("TentOPENCLOSE"), t: 0 },
+        { mode: "snap", clip: door,                     t: 0 },
+      ],
+      onEnter: () => { setGeo1Style(false); show3in(false); },
+      onUpdate: () => {},
+      onExit: () => {},
+      camera: {
+        mode: "fixed",
+        getPose: () => ({ position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) }),
+        baseDuration: (_, fast) => (fast ? 1.5 : 4.0),
+      },
+    },
+  ];
+}
+
+/* =========================
+ * ScrollSections (config-driven)
+ * ========================= */
+export function ScrollSections() {
+  const api = useAnimationAPI();
+
+  // section refs
+  const sectRefs = {
+    1: useRef(null),
+    2: useRef(null),
+    3: useRef(null),
+    4: useRef(null),
+    5: useRef(null),
+    6: useRef(null),
+  };
+
+  // systems
+  const camQRef = useRef(null);
+  const animatorRef = useRef(null);
+  if (!camQRef.current) camQRef.current = createCameraQueue();
+  if (!animatorRef.current) animatorRef.current = createAnimator(api);
+
+  // per-run state
+  const triggeredTweensRef = useRef(new Set()); // `${sectionId}:${clip}`
+  const section5RunnerRef = useRef({ running: false, start: 0, i: 0 });
+
+  // helpers that depend on api
+  const setGeo1Style = makeSetGeo1Style(api);
+  const show3in = makeShow3in(api);
+  const resolve = (name) => resolveClipName(name, api.clipNames || []);
+
+  // initial "open" state (same as before)
+  const ensureInitialOpenState = () => {
+    const entries = [];
+    const a0 = resolve("animation0");
+    const oc = resolve("TentOPENCLOSE");
+    if (a0) entries.push({ name: a0, t: 1 });
+    if (oc) entries.push({ name: oc, t: 1 });
+    if (entries.length) animatorRef.current.scrub(entries, true);
+    show3in(false);
+  };
+
+  // build section config
+  const SECTION_DEFS = buildSectionDefs(api, { setGeo1Style, show3in, resolve });
+
+  // camera helpers
+  const queueCam = (pose, opts = {}) => camQRef.current.queue(pose, opts);
+
+  // section 5 camera timeline engine (time-based)
+  function startFlythrough() {
+    const runner = section5RunnerRef.current;
+    runner.running = true;
+    runner.start = performance.now();
+    runner.i = 0;
+
+    const step = () => {
+      if (!runner.running) return;
+      const elapsed = (performance.now() - runner.start) / 1000;
+      let tUsed = 0;
+      for (let k = 0; k < SECTION_DEFS[4].camera.poses.length; k++) {
+        const seg = SECTION_DEFS[4].camera.poses[k];
+        const segLen = seg.moveDuration + seg.holdDuration;
+        if (elapsed < tUsed + segLen) {
+          runner.i = k;
+          const inSeg = elapsed - tUsed;
+          const moving = inSeg <= seg.moveDuration;
+          queueCam(
+            { position: seg.position, target: seg.target },
+            { baseDuration: moving ? seg.moveDuration : 0.1, immediate: false }
+          );
+          break;
+        }
+        tUsed += segLen;
+      }
+      if (elapsed <= tUsed) requestAnimationFrame(step);
+      else runner.running = false;
+    };
+    requestAnimationFrame(step);
+  }
+  function stopFlythrough() {
+    section5RunnerRef.current.running = false;
+  }
+
+  // scroll orchestration
   useEffect(() => {
+    if (!api) return;
     const animator = animatorRef.current;
     const camQ = camQRef.current;
 
+    // baseline camera: immediate snap to idle
+    camQ.reset();
+    queueCam(
+      { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) },
+      { baseDuration: 0, immediate: true }
+    );
+
+    ensureInitialOpenState();
+
     let lastScrollTime = 0;
+    let lastProgress = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
     let lastSection = -1;
-    let lastActiveCamera = null;
-    let tentHasBeenClosed = false;
-
-    let lastS1 = 0, lastS2 = 0, lastS3 = 0, lastS4 = 0, lastS5 = 0, lastS6 = 0;
-
-    const ensureInitialOpenState = () => {
-      if (api.clipNames.length > 0) {
-        const openEntries = [];
-        if (api.clipNames.includes("animation0")) openEntries.push({ name: "animation0", t: 1 });
-        if (api.clipNames.includes("TentOPENCLOSE")) openEntries.push({ name: "TentOPENCLOSE", t: 1 });
-        if (openEntries.length > 0) animator.scrub(openEntries, true);
-      }
-      show3in(false);
-    };
-
-    const queueCam = (pose, opts = {}) => camQ.queue(pose, opts);
 
     const onScroll = () => {
       const now = performance.now();
-      const s1 = progressFor(sect1Ref.current);
-      const s2 = progressFor(sect2Ref.current);
-      const s3 = progressFor(sect3Ref.current);
-      const s4 = progressFor(sect4Ref.current);
-      const s5 = progressFor(sect5Ref.current);
-      const s6 = progressFor(sect6Ref.current);
+      const p = {
+        1: progressFor(sectRefs[1].current),
+        2: progressFor(sectRefs[2].current),
+        3: progressFor(sectRefs[3].current),
+        4: progressFor(sectRefs[4].current),
+        5: progressFor(sectRefs[5].current),
+        6: progressFor(sectRefs[6].current),
+      };
 
-      const deltaTime = now - lastScrollTime;
-      const maxDelta = Math.max(
-        Math.abs(s1 - lastS1), Math.abs(s2 - lastS2), Math.abs(s3 - lastS3),
-        Math.abs(s4 - lastS4), Math.abs(s5 - lastS5), Math.abs(s6 - lastS6)
-      );
-      const isFastScroll = deltaTime > 0 && maxDelta / deltaTime > 0.001;
-
-      // active section?
+      // current section detection
       let currentSection = -1;
-      if (s1 > 0 && s1 <= 1) currentSection = 1;
-      else if (s2 > 0 && s2 <= 1) currentSection = 2;
-      else if (s3 > 0 && s3 <= 1) currentSection = 3;
-      else if (s4 > 0 && s4 <= 1) currentSection = 4;
-      else if (s5 > 0 && s5 <= 1) currentSection = 5;
-      else if (s6 > 0 && s6 <= 1) currentSection = 6;
-
-      const isInTransition = currentSection === -1 && (s1 > 0 || s2 > 0 || s3 > 0 || s4 > 0 || s5 > 0 || s6 > 0);
+      for (let i = 1; i <= 6; i++) {
+        if (p[i] > 0 && p[i] <= 1) { currentSection = i; break; }
+      }
+      const anyActive = Object.values(p).some(v => v > 0);
+      const isInTransition = currentSection === -1 && anyActive;
 
       if (currentSection !== lastSection) {
         window.dispatchEvent(new CustomEvent("sectionChange", { detail: { section: currentSection } }));
+        // handle enter/exit triggers
+        if (lastSection > 0) SECTION_DEFS[lastSection - 1].onExit?.();
+        if (currentSection > 0) {
+          SECTION_DEFS[currentSection - 1].onEnter?.();
+          // clear one-shot tween flags for this section (so re-entering can trigger again)
+          [...triggeredTweensRef.current].forEach((key) => {
+            if (key.startsWith(`${currentSection}:`)) triggeredTweensRef.current.delete(key);
+          });
+        }
+
+        // section 5 camera runner
+        if (currentSection === 5 && !section5RunnerRef.current.running) startFlythrough();
+        if (lastSection === 5 && section5RunnerRef.current.running) stopFlythrough();
+
         lastSection = currentSection;
       }
 
-      const E = [];
+      // scroll speed (for camera durations)
+      const deltaTime = now - lastScrollTime;
+      const diffs = [1, 2, 3, 4, 5, 6].map(i => Math.abs(p[i] - lastProgress[i]));
+      const maxDelta = Math.max(...diffs);
+      const isFast = deltaTime > 0 && maxDelta / deltaTime > 0.001;
 
-      // 1: Open/Setup (reversed)
-      if (s1 > 0 && s1 <= 1) {
-        setGeo1Style(false);
-        show3in(false);
-        const tRev = Math.max(0, 1 - s1);
-        if (api.clipNames.includes("animation0")) E.push({ name: "animation0", t: tRev });
-        if (api.clipNames.includes("TentOPENCLOSE")) E.push({ name: "TentOPENCLOSE", t: tRev });
-        if (s1 >= 0.98) {
-          if (api.clipNames.includes("animation0")) E.push({ name: "animation0", t: 0 });
-          if (api.clipNames.includes("TentOPENCLOSE")) E.push({ name: "TentOPENCLOSE", t: 0 });
-        }
-        const pose = { position: new THREE.Vector3(3.2, 1.7, -3.6), target: new THREE.Vector3(0, 0.5, 0) };
-        queueCam(pose, { baseDuration: isFastScroll ? 1.2 : 3.5 });
-        lastActiveCamera = pose;
-      }
+      // build animation scrubs/snaps for the active section
+      let scrubs = [];
+      if (currentSection > 0) {
+        const def = SECTION_DEFS[currentSection - 1];
+        def.onUpdate?.(p[currentSection]);
 
-      // 2: Door + BackWindow
-      const door = doorNameRef.current;
-      if (s2 > 0 && s2 <= 1) {
-        setGeo1Style(true);
-        show3in(false);
-        if (door) E.push({ name: door, t: s2 });
-        if (api.clipNames.includes("BackWindow")) E.push({ name: "BackWindow", t: s2 });
-        const pose = { position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) };
-        queueCam(pose, { baseDuration: isFastScroll ? 1.0 : 3.0 });
-        lastActiveCamera = pose;
-      }
+        // actions
+        for (const act of def.actions) {
+          if (!act.clip) continue;
 
-      // 3: Mattress (same cam as 2)
-      if (s3 > 0 && s3 <= 1) {
-        setGeo1Style(true);
-        show3in(true);
-        const pose = { position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) };
-        queueCam(pose, { baseDuration: isFastScroll ? 1.0 : 3.0 });
-        lastActiveCamera = pose;
-      }
-
-      // 4: Side
-      if (s4 > 0 && s4 <= 1) {
-        show3in(false);
-        if (api.clipNames.includes("Side")) E.push({ name: "Side", t: s4 });
-        const pose = { position: new THREE.Vector3(0, 1.5, -5), target: new THREE.Vector3(0, 0, 0) };
-        queueCam(pose, { baseDuration: isFastScroll ? 1.2 : 3.5 });
-        lastActiveCamera = pose;
-      }
-
-      // 5: Flythrough - Cinematic sequence independent of scroll speed
-      if (s5 > 0 && s5 <= 1) {
-        show3in(false);
-        setGeo1Style(false); // Ensure geo1 has opacity = 1.0 for flythrough
-        if (api.clipNames.includes("Door")) E.push({ name: "Door", t: 1 });
-        if (api.clipNames.includes("BackWindow")) E.push({ name: "BackWindow", t: 1 });
-        if (api.clipNames.includes("Side")) E.push({ name: "Side", t: 1 });
-
-        // Trigger cinematic flythrough once when entering section 5
-        if (!section5FlythroughRef.current.triggered) {
-          section5FlythroughRef.current.triggered = true;
-          section5FlythroughRef.current.startTime = performance.now();
-          section5FlythroughRef.current.currentPose = 0;
-          
-          // Start the cinematic sequence
-          const runCinematicFlythrough = () => {
-            const now = performance.now();
-            const elapsed = (now - section5FlythroughRef.current.startTime) / 1000; // seconds
-            const flythrough = section5FlythroughRef.current;
-            
-            if (flythrough.currentPose >= FLY_POSES.length) {
-              return; // Sequence complete
+          if (act.mode === "scrub") {
+            const t = THREE.MathUtils.clamp(act.map(p[currentSection] ?? 0), 0, 1);
+            scrubs.push({ name: act.clip, t });
+          } else if (act.mode === "snap") {
+            const cond = act.when ? !!act.when(p[currentSection]) : true;
+            if (cond) scrubs.push({ name: act.clip, t: THREE.MathUtils.clamp(act.t ?? 0, 0, 1) });
+          } else if (act.mode === "tween") {
+            const trig = act.trigger || "enter"; // "enter" | "always"
+            const key = `${def.id}:${act.clip}`;
+            const shouldStart = trig === "enter"
+              ? (p[currentSection] > 0 && !triggeredTweensRef.current.has(key))
+              : true;
+            if (shouldStart) {
+              triggeredTweensRef.current.add(key);
+              animator.tweenTo(act.clip, act.from ?? 0, act.to ?? 1, act.ms ?? 1000);
             }
-            
-            const currentPoseData = FLY_POSES[flythrough.currentPose];
-            let totalTimeForThisPose = 0;
-            
-            // Calculate total time used by previous poses
-            for (let i = 0; i < flythrough.currentPose; i++) {
-              totalTimeForThisPose += FLY_POSES[i].moveDuration + FLY_POSES[i].holdDuration;
-            }
-            
-            const timeInCurrentPose = elapsed - totalTimeForThisPose;
-            
-            if (timeInCurrentPose <= currentPoseData.moveDuration) {
-              // Currently moving to this pose
-              queueCam(
-                { 
-                  position: currentPoseData.position, 
-                  target: currentPoseData.target 
-                }, 
-                { 
-                  baseDuration: currentPoseData.moveDuration,
-                  immediate: false 
-                }
-              );
-            } else if (timeInCurrentPose <= currentPoseData.moveDuration + currentPoseData.holdDuration) {
-              // Currently holding at this pose - keep camera steady
-              queueCam(
-                { 
-                  position: currentPoseData.position, 
-                  target: currentPoseData.target 
-                }, 
-                { 
-                  baseDuration: 0.1, // Small duration to maintain position
-                  immediate: false 
-                }
-              );
-            } else {
-              // Move to next pose
-              flythrough.currentPose++;
-            }
-            
-            // Continue the sequence if still in section 5 and not complete
-            if (s5 > 0 && flythrough.currentPose < FLY_POSES.length) {
-              requestAnimationFrame(runCinematicFlythrough);
-            }
-          };
-          
-          runCinematicFlythrough();
+          }
         }
-        
-        // Update lastActiveCamera for reference
-        if (section5FlythroughRef.current.currentPose < FLY_POSES.length) {
-          const currentPose = FLY_POSES[section5FlythroughRef.current.currentPose];
-          lastActiveCamera = { position: currentPose.position, target: currentPose.target };
+
+        // camera per section
+        if (def.camera?.mode === "fixed") {
+          const pose = def.camera.getPose(p[currentSection]);
+          queueCam(pose, { baseDuration: def.camera.baseDuration?.(p[currentSection], isFast) ?? 2.0 });
         }
       }
 
-      // 6: Return / close Side + BackWindow over 2s, reset others
-      if (s6 > 0 && s6 <= 1) {
-        show3in(false);
-        setGeo1Style(false);
+      // section 5 camera timeline handled separately (running only while in 5)
+      // send scrubs (exclusive)
+      if (scrubs.length) animator.scrub(scrubs, true);
+      else window.dispatchEvent(new Event("clearScrub"));
 
-        if (!section6AnimTriggered.current) {
-          section6AnimTriggered.current = true;
-
-          const sideAnim = api.clipNames.includes("Side") ? "Side" : null;
-          const backWindowAnim = api.clipNames.includes("BackWindow") ? "BackWindow" : null;
-
-          if (backWindowAnim) animator.tweenTo(backWindowAnim, 1, 0, 2000);
-          if (sideAnim) animator.tweenTo(sideAnim, 1, 0, 2000);
-        }
-
-        // Ensure BackWindow and Side are closed in Section 6
-        if (api.clipNames.includes("BackWindow")) E.push({ name: "BackWindow", t: 0 });
-        if (api.clipNames.includes("Side")) E.push({ name: "Side", t: 0 });
-
-        // Reset other animations immediately
-        if (api.clipNames.includes("animation0")) E.push({ name: "animation0", t: 0 });
-        if (api.clipNames.includes("TentOPENCLOSE")) E.push({ name: "TentOPENCLOSE", t: 0 });
-
-        const d = doorNameRef.current;
-        if (d) E.push({ name: d, t: 0 });
-
-        const pose = { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) };
-        queueCam(pose, { baseDuration: isFastScroll ? 1.5 : 4.0 });
-        lastActiveCamera = pose;
-      }
-
-      if (s6 === 0 && section6AnimTriggered.current) {
-        section6AnimTriggered.current = false;
-        section6AnimationRef.current = null;
-      }
-      
-      // Reset Section 5 flythrough when leaving section 5
-      if (s5 === 0 && section5FlythroughRef.current.triggered) {
-        section5FlythroughRef.current.triggered = false;
-        section5FlythroughRef.current.startTime = 0;
-        section5FlythroughRef.current.currentPose = 0;
-      }
-
-      if (E.length > 0) {
-        animator.scrub(E, true);
-      } else {
-        if (tentHasBeenClosed && s2 === 0 && s3 === 0 && s4 === 0 && s5 === 0 && s6 === 0) {
-          const closeEntries = [];
-          if (api.clipNames.includes("animation0")) closeEntries.push({ name: "animation0", t: 0 });
-          if (api.clipNames.includes("TentOPENCLOSE")) closeEntries.push({ name: "TentOPENCLOSE", t: 0 });
-          if (closeEntries.length > 0) animator.scrub(closeEntries, true);
-          else window.dispatchEvent(new Event("clearScrub"));
-        } else {
-          window.dispatchEvent(new Event("clearScrub"));
-        }
-
-        const allInactive = s1 === 0 && s2 === 0 && s3 === 0 && s4 === 0 && s5 === 0 && s6 === 0;
-        if (allInactive && !isInTransition) {
-          show3in(false);
-          const pose = { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) };
-          queueCam(pose, { baseDuration: 4.0 });
-          lastActiveCamera = pose;
-        }
-        if (s2 === 0 && s3 === 0 && appliedGeo1Ref.current) setGeo1Style(false);
+      // idle camera when nothing is active and not transitioning
+      if (!anyActive && !isInTransition) {
+        const idle = { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) };
+        queueCam(idle, { baseDuration: 4.0 });
       }
 
       lastScrollTime = now;
-      lastS1 = s1; lastS2 = s2; lastS3 = s3; lastS4 = s4; lastS5 = s5; lastS6 = s6;
-      if (s1 >= 0.98) tentHasBeenClosed = true;
+      lastProgress = p;
     };
 
-    // throttle scroll handler
+    // wire events
     let scrollTimeout;
     const throttledScroll = () => {
       if (scrollTimeout) return;
-      scrollTimeout = setTimeout(() => {
-        onScroll();
-        scrollTimeout = null;
-      }, 8);
+      scrollTimeout = setTimeout(() => { onScroll(); scrollTimeout = null; }, 8);
     };
-
     const onResize = () => onScroll();
 
-    if (typeof window !== "undefined" && window.addEventListener) {
-      window.addEventListener("scroll", throttledScroll, { passive: true });
-      window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", throttledScroll, { passive: true });
+    window.addEventListener("resize", onResize);
 
-      // baseline camera: immediate snap to idle
+    // kick
+    onScroll();
+
+    return () => {
+      window.removeEventListener("scroll", throttledScroll);
+      window.removeEventListener("resize", onResize);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
       camQ.reset();
-      camQ.queue(
-        { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) },
-        { baseDuration: 0, immediate: true }
-      );
+      animator.cancelAll();
+      stopFlythrough();
+    };
+  }, [api]); // rebind when clipNames/group change
 
-      ensureInitialOpenState();
-      onScroll();
-
-      return () => {
-        window.removeEventListener("scroll", throttledScroll);
-        window.removeEventListener("resize", onResize);
-        if (scrollTimeout) clearTimeout(scrollTimeout);
-        camQ.reset();
-        animator.cancelAll();
-      };
-    }
-  }, [api]);
-
-  // (Optional) live tick; placeholder to mirror tween state if you later store it
+  // passive tick (kept for parity/future state mirrors)
   useEffect(() => {
     let raf = 0;
     const tick = () => { raf = requestAnimationFrame(tick); };
@@ -482,64 +496,20 @@ export function ScrollSections() {
     <main className="relative z-10">
       <div className="absolute inset-0 w-full h-full" />
       <section className="px-6 py-16 max-w-3xl mx-auto relative z-20" />
-      {/* 1 */}
-      <section ref={sect1Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
-      {/* 2 */}
-      <section ref={sect2Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
-      {/* 3 */}
-      <section ref={sect3Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
-      {/* 4 */}
-      <section ref={sect4Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
-      {/* 5 */}
-      <section ref={sect5Ref} className="min-h-[350vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
-      {/* 6 */}
-      <section ref={sect6Ref} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      {/* 1..6: same layout as before */}
+      <section ref={sectRefs[1]} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      <section ref={sectRefs[2]} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      <section ref={sectRefs[3]} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      <section ref={sectRefs[4]} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      <section ref={sectRefs[5]} className="min-h-[350vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
+      <section ref={sectRefs[6]} className="min-h-[120vh] px-6 py-24 border-slate-800 relative z-20"><div /></section>
       <section className="px-6 py-24 border-slate-800 relative z-20"><div /></section>
     </main>
   );
 }
 
 /* =========================
- *  Pose interpolation (JS)
- * ========================= */
-const _curveCache = new WeakMap();
-function interpolatePose(poses, t) {
-  if (!poses || poses.length === 0) return null;
-  if (poses.length === 1) return { ...poses[0], duration: poses[0].duration ?? 1 };
-
-  let rec = _curveCache.get(poses);
-  if (!rec || rec.count !== poses.length) {
-    const p = poses.map((pp) => pp.position.clone());
-    const q = poses.map((pp) => pp.target.clone());
-    const tension = 0.5;
-    const posCurve = new THREE.CatmullRomCurve3(p, false, "catmullrom", tension);
-    const tarCurve = new THREE.CatmullRomCurve3(q, false, "catmullrom", tension);
-    const durations = poses.map((pp) => Math.max(0.0001, pp.duration ?? 1));
-    const total = durations.reduce((s, d) => s + d, 0);
-    rec = { posCurve, tarCurve, durations, total, count: poses.length };
-    _curveCache.set(poses, rec);
-  }
-
-  const { durations, total, posCurve, tarCurve } = rec;
-  let targetTime = THREE.MathUtils.clamp(t, 0, 1) * total;
-  let acc = 0;
-  let i = 0;
-  while (i < durations.length - 1 && acc + durations[i] < targetTime) {
-    acc += durations[i];
-    i++;
-  }
-  const localT = THREE.MathUtils.clamp((targetTime - acc) / durations[i], 0, 1);
-  const u = (i + localT) / (durations.length - 1);
-
-  return {
-    position: posCurve.getPoint(u),
-    target: tarCurve.getPoint(u),
-    duration: durations[i],
-  };
-}
-
-/* =========================
- *  Section progress helper
+ * Section progress helper
  * ========================= */
 function progressFor(el) {
   if (!el) return 0;
