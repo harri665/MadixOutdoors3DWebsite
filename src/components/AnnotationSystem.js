@@ -29,7 +29,7 @@ export function AnnotationSystem() {
     7: [{ 
       objectName: "Plane008", 
       text: "Interior Space", 
-      description: "* Light Grey suede roof finish  \n *Interior LED light strip",
+      description: "* Light Grey suede roof finish  \n * Interior LED light strip",
       position: "top"
     }]
   };
