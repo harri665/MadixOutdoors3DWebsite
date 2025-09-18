@@ -15,11 +15,11 @@ export function AnnotationSystem() {
   // Note: position property only affects mobile devices (<=768px width)
   // On desktop, all annotations are positioned from top regardless of position setting
   const annotationTargets = {
-    1: [{ objectName: "Plane009", text: "Hard Shell Pop-Up Canopy", description: "* Solid ⅛\\\" formed aluminum sheet roof \\n* Quick pop-up with trigger pull \\n* Internal secure latch system (no exterior latches) \\n* 96\\\" sleeping area, 101\\\" overall length ", position: "bottom" }],
-    2: [{ objectName: "Point", text: "Four Season Tent", description: "* 3 zippered windows & doors (2 side, 1 rear) \\n* Removable tent fabric \\n* Interior LED lighting \\n* Suede padded headliner with 1\\\" foam insulation in ceiling.", position: "bottom" }],
-    3: [{ objectName: "Plane005", text: "Mattress", description: " * 2\\\" foam mattress with cover \\n * Anti-condensation mat", position: "bottom" }],
+    1: [{ objectName: "Plane009", text: "Hard Shell Pop-Up Canopy", description: "* Solid ⅛\" formed aluminum sheet roof \n* Quick pop-up with trigger pull \n* Internal secure latch system (no exterior latches) \n* 96\" sleeping area, 101\" overall length ", position: "bottom" }],
+    2: [{ objectName: "Point", text: "Four Season Tent", description: "* 3 zippered windows & doors (2 side, 1 rear) \n* Removable tent fabric \n* Interior LED lighting \n* Suede padded headliner with 1\" foam insulation in ceiling.", position: "bottom" }],
+    3: [{ objectName: "Plane005", text: "Mattress", description: " * 2\" foam mattress with cover \n * Anti-condensation mat", position: "bottom" }],
     4: [{ objectName: "Plane008", text: "Pass-Through Access", description: "* Tilt-up bed panels for full truck bed use\n * Full standing room inside", position: "bottom" }],
-    5: [{ objectName: "Plane015", text: "Side Hatches", description: "* Compression lock system \\n * 3.5\\\" expanded sides for storage of gear & accessories on optional MOLLE panel system (no loss of interior space)", position: "bottom" }],
+    5: [{ objectName: "Plane015", text: "Side Hatches", description: "* Compression lock system \n * 3.5\" expanded sides for storage of gear & accessories on optional MOLLE panel system (no loss of interior space)", position: "bottom" }],
     6: [{ 
       objectName: "Plane003", 
       text: "Rear Hatch", 
