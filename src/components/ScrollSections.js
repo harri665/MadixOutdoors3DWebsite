@@ -232,7 +232,7 @@ function buildSectionDefs(api, utils) {
       onExit: () => {},
       camera: {
         mode: "fixed",
-        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, -1) }),
+        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -.8), target: new THREE.Vector3(-0.7, 0.9, -.8) }),
         baseDuration: (_, fast) => (fast ? 1.0 : 3.0),
       },
     },
