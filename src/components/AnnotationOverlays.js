@@ -215,7 +215,7 @@ export function AnnotationOverlays() {
 
             {/* Text block positioned on side */}
             <div
-              className="absolute bg-black/95 backdrop-blur-sm border border-white/20 rounded-xl p-4 text-white w-80 shadow-2xl"
+              className="absolute bg-black/99 backdrop-blur-md border border-white/30 rounded-xl p-4 text-white w-80 shadow-2xl"
               style={{
                 left: textBlockX,
                 top: textBlockY,
