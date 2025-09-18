@@ -6,6 +6,103 @@ import React, { useState, useEffect } from "react";
 export function AnnotationOverlays() {
   const [annotations, setAnnotations] = useState([]);
 
+  // Function to parse description text and convert bullet points to JSX
+  const parseDescription = (description) => {
+    if (!description) return null;
+
+    // Split by lines and check if any line starts with bullet point indicators
+    const lines = description.split('\n');
+    const bulletLines = [];
+    const textLines = [];
+    
+    let currentBulletGroup = [];
+    let hasBullets = false;
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      // Check for bullet point indicators: •, *, -, or numbered lists
+      if (trimmedLine.match(/^[•*-]\s+/) || trimmedLine.match(/^\d+\.\s+/)) {
+        hasBullets = true;
+        // If we have accumulated text lines, process them first
+        if (textLines.length > 0) {
+          bulletLines.push({
+            type: 'text',
+            content: textLines.join(' '),
+            key: `text-${index}`
+          });
+          textLines.length = 0;
+        }
+        
+        // Add to current bullet group
+        const bulletText = trimmedLine.replace(/^[•*-]\s+/, '').replace(/^\d+\.\s+/, '');
+        currentBulletGroup.push(bulletText);
+      } else if (trimmedLine) {
+        // If we have accumulated bullets, close the group
+        if (currentBulletGroup.length > 0) {
+          bulletLines.push({
+            type: 'bullets',
+            content: [...currentBulletGroup],
+            key: `bullets-${index}`
+          });
+          currentBulletGroup.length = 0;
+        }
+        textLines.push(trimmedLine);
+      }
+    });
+
+    // Process any remaining content
+    if (currentBulletGroup.length > 0) {
+      bulletLines.push({
+        type: 'bullets',
+        content: [...currentBulletGroup],
+        key: `bullets-final`
+      });
+    }
+    if (textLines.length > 0) {
+      bulletLines.push({
+        type: 'text',
+        content: textLines.join(' '),
+        key: `text-final`
+      });
+    }
+
+    // If no special formatting was found, return as regular text
+    if (!hasBullets) {
+      return (
+        <div className="text-sm text-slate-300 leading-relaxed">
+          {description}
+        </div>
+      );
+    }
+
+    // Render the parsed content
+    return (
+      <div className="space-y-2">
+        {bulletLines.map((item) => {
+          if (item.type === 'text') {
+            return (
+              <div key={item.key} className="text-sm text-slate-300 leading-relaxed">
+                {item.content}
+              </div>
+            );
+          } else if (item.type === 'bullets') {
+            return (
+              <ul key={item.key} className="text-sm text-slate-300 leading-relaxed ml-3 space-y-1">
+                {item.content.map((bullet, idx) => (
+                  <li key={`${item.key}-${idx}`} className="flex items-start">
+                    <span className="text-white mr-2 mt-0.5">•</span>
+                    <span>{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
+  };
+
   useEffect(() => {
     const onUpdateAnnotations = (e) => {
       const { annotations: newAnnotations } = e.detail || {};
@@ -113,8 +210,8 @@ export function AnnotationOverlays() {
               <div className="text-lg font-bold text-white mb-2">
                 {annotation.text}
               </div>
-              <div className="text-sm text-slate-300 leading-relaxed mb-3">
-                {annotation.description}
+              <div className="mb-3">
+                {parseDescription(annotation.description)}
               </div>
               
               {/* Connection indicator dot */}
