@@ -127,9 +127,9 @@ function resolveClipName(requested, clipNames) {
  * Camera flythrough poses (Section 5)
  * ========================= */
 const FLY_POSES = [
-  { position: new THREE.Vector3(0, 0.8, -7),   target: new THREE.Vector3(0, 0.5, 0), moveDuration: .1, holdDuration: 0 },
-  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2,   0), moveDuration: .2, holdDuration: 1.2 },
-  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2,   0), moveDuration: 0,  holdDuration: 0 },
+  { position: new THREE.Vector3(0, 0.8, -7),   target: new THREE.Vector3(0, 0.5, 0), moveDuration: 0.1, holdDuration: 0.1 },
+  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2,   0), moveDuration: 0.1, holdDuration: .1 },
+  { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2,   0), moveDuration: 0,  holdDuration: 0.1 },
 ];
 
 /* =========================================================
@@ -142,6 +142,9 @@ const FLY_POSES = [
 function buildSectionDefs(api, utils) {
   const { setGeo1Style, show3in, resolve } = utils;
   const door = resolve("Door"); // fuzzy door name once
+  // Try to resolve tent animation with multiple name variations
+  const tentOpenClose = resolve("TentOPENCLOSE") || resolve("tentOpenClose") || resolve("TentOpenClose");
+  
   return [
     /* ===== 1. Open/Setup (reversed like before) ===== */
     {
@@ -149,10 +152,10 @@ function buildSectionDefs(api, utils) {
       label: "Open/Setup",
       actions: [
         { mode: "scrub", clip: resolve("animation0"), map: (s) => Math.max(0, 1 - s) },
-        { mode: "scrub", clip: resolve("TentOPENCLOSE"), map: (s) => Math.max(0, 1 - s) },
+        { mode: "scrub", clip: tentOpenClose, map: (s) => Math.max(0, 1 - s) },
         // hard clamp to fully closed near the end (same as your ≥0.98)
         { mode: "snap",  clip: resolve("animation0"), when: (s) => s >= 0.98, t: 0 },
-        { mode: "snap",  clip: resolve("TentOPENCLOSE"), when: (s) => s >= 0.98, t: 0 },
+        { mode: "snap",  clip: tentOpenClose, when: (s) => s >= 0.98, t: 0 },
       ],
       onEnter: () => { setGeo1Style(false); show3in(false); },
       onUpdate: () => {},
@@ -243,13 +246,13 @@ function buildSectionDefs(api, utils) {
         { mode: "tween", clip: resolve("Side"),       from: 1, to: 0, ms: 2000, trigger: "enter" },
 
         // And keep everything closed while we stay here
-        { mode: "snap", clip: resolve("BackWindow"), t: 0 },
-        { mode: "snap", clip: resolve("Side"),       t: 0 },
+        // { mode: "snap", clip: resolve("BackWindow"), t: 0 },
+        // { mode: "snap", clip: resolve("Side"),       t: 0 },
 
         // Reset other animations immediately (like before)
-        { mode: "snap", clip: resolve("animation0"),    t: 0 },
-        { mode: "snap", clip: resolve("TentOPENCLOSE"), t: 0 },
-        { mode: "snap", clip: door,                     t: 0 },
+        { mode: "snap", clip: resolve("animation0"),    t: 1 },
+        { mode: "snap", clip: tentOpenClose, t: 1 },
+        // { mode: "snap", clip: door,                     t: 0 },
       ],
       onEnter: () => { setGeo1Style(false); show3in(false); },
       onUpdate: () => {},
@@ -294,14 +297,26 @@ export function ScrollSections() {
   const show3in = makeShow3in(api);
   const resolve = (name) => resolveClipName(name, api.clipNames || []);
 
-  // initial "open" state (same as before)
+  // initial "open" state - set animation0 and tentOpenClose to t:0.98 on page load
   const ensureInitialOpenState = () => {
     const entries = [];
     const a0 = resolve("animation0");
-    const oc = resolve("TentOPENCLOSE");
-    if (a0) entries.push({ name: a0, t: 1 });
-    if (oc) entries.push({ name: oc, t: 1 });
-    if (entries.length) animatorRef.current.scrub(entries, true);
+    // Try both variations of tent open/close animation name
+    const oc = resolve("TentOPENCLOSE") || resolve("tentOpenClose") || resolve("TentOpenClose");
+    
+    console.log("Setting initial state - Available clips:", api.clipNames);
+    console.log("Resolved animation0:", a0);
+    console.log("Resolved tent animation:", oc);
+    
+    if (a0) entries.push({ name: a0, t: 0.98 });
+    if (oc) entries.push({ name: oc, t: 0.98 });
+    
+    console.log("Initial state entries:", entries);
+    
+    if (entries.length) {
+      animatorRef.current.scrub(entries, true);
+      console.log("Applied initial state scrub");
+    }
     show3in(false);
   };
 
@@ -314,6 +329,7 @@ export function ScrollSections() {
   // section 5 camera timeline engine (time-based)
   function startFlythrough() {
     const runner = section5RunnerRef.current;
+    console.log("Starting flythrough animation");
     runner.running = true;
     runner.start = performance.now();
     runner.i = 0;
@@ -322,33 +338,36 @@ export function ScrollSections() {
       if (!runner.running) return;
       const elapsed = (performance.now() - runner.start) / 1000;
       let tUsed = 0;
-      for (let k = 0; k < SECTION_DEFS[4].camera.poses.length; k++) {
-        const seg = SECTION_DEFS[4].camera.poses[k];
+      for (let k = 0; k < FLY_POSES.length; k++) {
+        const seg = FLY_POSES[k];
         const segLen = seg.moveDuration + seg.holdDuration;
         if (elapsed < tUsed + segLen) {
           runner.i = k;
           const inSeg = elapsed - tUsed;
           const moving = inSeg <= seg.moveDuration;
+          console.log(`Flythrough step ${k}, elapsed: ${elapsed.toFixed(2)}s, moving: ${moving}`);
           queueCam(
             { position: seg.position, target: seg.target },
             { baseDuration: moving ? seg.moveDuration : 0.1, immediate: false }
           );
-          break;
+          requestAnimationFrame(step);
+          return;
         }
         tUsed += segLen;
       }
-      if (elapsed <= tUsed) requestAnimationFrame(step);
-      else runner.running = false;
+      console.log("Flythrough completed");
+      runner.running = false;
     };
     requestAnimationFrame(step);
   }
   function stopFlythrough() {
+    console.log("Stopping flythrough animation");
     section5RunnerRef.current.running = false;
   }
 
   // scroll orchestration
   useEffect(() => {
-    if (!api) return;
+    if (!api || !api.clipNames || api.clipNames.length === 0) return;
     const animator = animatorRef.current;
     const camQ = camQRef.current;
 
@@ -359,7 +378,11 @@ export function ScrollSections() {
       { baseDuration: 0, immediate: true }
     );
 
-    ensureInitialOpenState();
+    // Set initial state to 0.98 once animations are available
+    // Add a small delay to ensure animation system is fully ready
+    setTimeout(() => {
+      ensureInitialOpenState();
+    }, 0);
 
     let lastScrollTime = 0;
     let lastProgress = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
@@ -385,6 +408,7 @@ export function ScrollSections() {
       const isInTransition = currentSection === -1 && anyActive;
 
       if (currentSection !== lastSection) {
+        console.log(`Section changed from ${lastSection} to ${currentSection}`);
         window.dispatchEvent(new CustomEvent("sectionChange", { detail: { section: currentSection } }));
         // handle enter/exit triggers
         if (lastSection > 0) SECTION_DEFS[lastSection - 1].onExit?.();
@@ -397,8 +421,14 @@ export function ScrollSections() {
         }
 
         // section 5 camera runner
-        if (currentSection === 5 && !section5RunnerRef.current.running) startFlythrough();
-        if (lastSection === 5 && section5RunnerRef.current.running) stopFlythrough();
+        if (currentSection === 5 && !section5RunnerRef.current.running) {
+          console.log("Entering section 5, starting flythrough");
+          startFlythrough();
+        }
+        if (lastSection === 5 && section5RunnerRef.current.running) {
+          console.log("Leaving section 5, stopping flythrough");
+          stopFlythrough();
+        }
 
         lastSection = currentSection;
       }
