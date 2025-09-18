@@ -12,21 +12,25 @@ export function AnnotationSystem() {
   const [annotations, setAnnotations] = useState([]);
 
   // Define annotation targets for each section
+  // Note: position property only affects mobile devices (<=768px width)
+  // On desktop, all annotations are positioned from top regardless of position setting
   const annotationTargets = {
-    1: [{ objectName: "Plane009", text: "Hard Shell Pop-Up Canopy", description: "* Solid ⅛\” formed aluminum sheet roof \n* Quick pop-up with trigger pull \n* Internal secure latch system (no exterior latches) \n* 96” sleeping area, 101” overall length " }],
-    2: [{ objectName: "Point", text: "Four Season Tent", description: "* 3 zippered windows & doors (2 side, 1 rear) \n* Removable tent fabric \n* Interior LED lighting \n* Suede padded headliner with 1” foam insulation in ceiling." }],
-    3: [{ objectName: "Plane005", text: "Mattress", description: " * 2\” foam mattress with cover \n * Anti-condensation mat" }],
-    4: [{ objectName: "Plane008", text: "Pass-Through Access", description: "* Tilt-up bed panels for full truck bed use\n * Full standing room inside" }],
-    5: [{ objectName: "Plane015", text: "Side Hatches", description: "* Compression lock system \n * 3.5\” expanded sides for storage of gear & accessories on optional MOLLE panel system (no loss of interior space)" }],
+    1: [{ objectName: "Plane009", text: "Hard Shell Pop-Up Canopy", description: "* Solid ⅛\\\" formed aluminum sheet roof \\n* Quick pop-up with trigger pull \\n* Internal secure latch system (no exterior latches) \\n* 96\\\" sleeping area, 101\\\" overall length ", position: "bottom" }],
+    2: [{ objectName: "Point", text: "Four Season Tent", description: "* 3 zippered windows & doors (2 side, 1 rear) \\n* Removable tent fabric \\n* Interior LED lighting \\n* Suede padded headliner with 1\\\" foam insulation in ceiling.", position: "bottom" }],
+    3: [{ objectName: "Plane005", text: "Mattress", description: " * 2\\\" foam mattress with cover \\n * Anti-condensation mat", position: "bottom" }],
+    4: [{ objectName: "Plane008", text: "Pass-Through Access", description: "* Tilt-up bed panels for full truck bed use\n * Full standing room inside", position: "bottom" }],
+    5: [{ objectName: "Plane015", text: "Side Hatches", description: "* Compression lock system \\n * 3.5\\\" expanded sides for storage of gear & accessories on optional MOLLE panel system (no loss of interior space)", position: "bottom" }],
     6: [{ 
       objectName: "Plane003", 
       text: "Rear Hatch", 
-      description: "* Compression lock system \n * Tinted rear acrylic window"
+      description: "* Compression lock system \n * Tinted rear acrylic window",
+      position: "bottom"
     }],
     7: [{ 
       objectName: "Plane008", 
       text: "Interior Space", 
-      description: "* Light Grey suede roof finish  \n *Interior LED light strip"
+      description: "* Light Grey suede roof finish  \n *Interior LED light strip",
+      position: "top"
     }]
   };
 
@@ -64,7 +68,8 @@ export function AnnotationSystem() {
               worldPosition: worldPos,
               text: target.text,
               description: target.description,
-              objectName: target.objectName
+              objectName: target.objectName,
+              position: target.position
             };
           }
           return null;

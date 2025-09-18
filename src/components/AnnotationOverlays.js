@@ -144,7 +144,29 @@ export function AnnotationOverlays() {
         // Position text blocks on the left or right side of the screen
         const isLeftSide = clampedX < window.innerWidth / 2;
         const textBlockX = isLeftSide ? 20 : window.innerWidth - 320; // 20px from edge, 300px width + 20px margin
-        const textBlockY = 100 + (index * 160); // Stack text blocks vertically with spacing
+        
+        // Detect if we're on mobile device
+        const isMobile = window.innerWidth <= 768; // Standard mobile breakpoint
+        
+        // Position text blocks at top or bottom based on device type
+        let textBlockY;
+        const annotationHeight = 140; // Approximate height of annotation card
+        const marginFromEdge = 20;
+        
+        if (isMobile && annotation.position === "bottom") {
+          // On mobile: use bottom positioning if specified
+          const bottomPositions = annotations.filter(ann => ann.position === "bottom");
+          const bottomIndex = bottomPositions.indexOf(annotation);
+          textBlockY = window.innerHeight - marginFromEdge - annotationHeight - (bottomIndex * 160);
+        } else if (isMobile && annotation.position === "top") {
+          // On mobile: use top positioning if specified
+          const topPositions = annotations.filter(ann => ann.position === "top");
+          const topIndex = topPositions.indexOf(annotation);
+          textBlockY = marginFromEdge + (topIndex * 160);
+        } else {
+          // On desktop: always position from top down regardless of annotation.position
+          textBlockY = marginFromEdge + (index * 160);
+        }
         
         // Calculate line coordinates more precisely
         const lineStartX = isLeftSide ? textBlockX + 300 : textBlockX; // Start from edge of text block
