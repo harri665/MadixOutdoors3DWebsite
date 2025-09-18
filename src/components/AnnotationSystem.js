@@ -13,19 +13,19 @@ export function AnnotationSystem() {
 
   // Define annotation targets for each section
   const annotationTargets = {
-    1: [{ objectName: "Plane009", text: "Hard Shell Pop-Up Tent", description: "Solid ⅛\" formed aluminum sheet roof with quick pop-up trigger pull system. 4 Season Rated Tent with full standing room inside." }],
-    2: [{ objectName: "geo1", text: "3 Zippered Access Points", description: "3 zippered windows & doors (2 side, 1 rear) with internal secure latch system. No exterior latches for enhanced security." }],
-    3: [{ objectName: "Plane005", text: "Premium Mattress System", description: "2\" foam mattress with cover and anti-condensation mat. 96\" sleeping area, 101\" overall length for maximum comfort." }],
-    4: [{ objectName: "Plane005", text: "Side Hatches & Storage", description: "Compression lock system with 3.5\" expanded sides for storage of gear & accessories on optional MOLLE panel system (no loss of interior space)." }],
+    1: [{ objectName: "Plane009", text: "Hard Shell Pop-Up Tent", description: "* Solid ⅛\” formed aluminum sheet roof \n* Quick pop-up with trigger pull \n* Internal secure latch system (no exterior latches) \n* 96” sleeping area, 101” overall length \n* 3 zippered windows & doors (2 side, 1 rear) \n* Removable tent fabric \n* Interior LED lighting \n* Suede padded headliner with 1” foam insulation in ceiling." }],
+    2: [{ objectName: "Plane008", text: "Pass-Through Access", description: "* Tilt-up bed panels for full truck bed use\n * Full standing room inside" }],
+    3: [{ objectName: "Plane005", text: "Mattress", description: " * 2\” foam mattress with cover \n * Anti-condensation mat" }],
+    4: [{ objectName: "Plane015", text: "Side Hatches", description: "* Compression lock system \n * 3.5\” expanded sides for storage of gear & accessories on optional MOLLE panel system (no loss of interior space)" }],
     5: [{ 
-      objectName: "Plane015", 
-      text: "Complete Interior Features", 
-      description: "Light grey suede roof finish, suede padded headliner with 1\" foam insulation in ceiling, interior LED light strip, removable tent fabric, and gas strut assisted operation."
+      objectName: "Plane003", 
+      text: "Rear Hatch", 
+      description: "* Compression lock system \n * Tinted rear acrylic window"
     }],
     6: [{ 
-      objectName: "Plane015", 
-      text: "Rear Hatch & Access", 
-      description: "Compression lock system with tinted rear acrylic window. Pass-through access with tilt-up bed panels for full truck bed use."
+      objectName: "Plane008", 
+      text: "Interior Space", 
+      description: "* Light Grey suede roof finish  \n *Interior LED light strip"
     }]
   };
 

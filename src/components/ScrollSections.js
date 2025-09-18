@@ -201,8 +201,9 @@ const FLY_POSES = [
  * Camera flythrough poses (Section 6)
  * ========================= */
 const SECTION6_FLY_POSES = [
-  { position: new THREE.Vector3(0, 0.5, -5), target: new THREE.Vector3(0, 0, 0), moveDuration: 1.5, holdDuration: 0 },
-  { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0), moveDuration: 2.0, holdDuration: 1.0 },
+  { position: new THREE.Vector3(0, 0.5, -5), target: new THREE.Vector3(0, 0, 0), moveDuration: 1.5, holdDuration: 1.0 },
+  { position: new THREE.Vector3(3, 0.5, -5), target: new THREE.Vector3(0, 0, 0), moveDuration: 0.1, holdDuration: 0 },
+  { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0), moveDuration: 4.0, holdDuration: 1.0 },
 ];
 
 /* =========================================================
