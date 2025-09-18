@@ -1,5 +1,5 @@
 # Multi-stage build for React app
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install ALL dependencies (including devDependencies needed for build)
-RUN npm ci
+# Use npm install instead of npm ci since package-lock.json might not exist
+RUN npm install
 
 # Copy source code
 COPY . .
