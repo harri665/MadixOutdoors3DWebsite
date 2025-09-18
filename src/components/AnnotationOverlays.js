@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
  */
 export function AnnotationOverlays() {
   const [annotations, setAnnotations] = useState([]);
+  const [currentSection, setCurrentSection] = useState(0);
 
   // Function to parse description text and convert bullet points to JSX
   const parseDescription = (description) => {
@@ -109,11 +110,25 @@ export function AnnotationOverlays() {
       setAnnotations(newAnnotations || []);
     };
 
+    const onSectionChange = (e) => {
+      const { section } = e.detail || {};
+      setCurrentSection(section);
+    };
+
     if (typeof window !== "undefined" && window.addEventListener) {
       window.addEventListener("updateAnnotations", onUpdateAnnotations);
-      return () => window.removeEventListener("updateAnnotations", onUpdateAnnotations);
+      window.addEventListener("sectionChange", onSectionChange);
+      return () => {
+        window.removeEventListener("updateAnnotations", onUpdateAnnotations);
+        window.removeEventListener("sectionChange", onSectionChange);
+      };
     }
   }, []);
+
+  // Hide annotations in section 8
+  if (currentSection === 8) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 pointer-events-none z-15">

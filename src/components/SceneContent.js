@@ -77,9 +77,9 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
   }, [loading, scene, onLoadingComplete]);
 
   // === SCRUB BUS ===
+  // Fixed: Removed animationStartedRef references for section 5
   const scrubRef = useRef({ entries: [], exclusive: true });
   const sectionRef = useRef(-1); // Track current section
-  const animationStartedRef = useRef(false); // Track if animations have started in section 5
   const mattressAnimationStartedRef = useRef(false); // Track if mattress animation has started in section 3
 
   useEffect(() => {
@@ -103,15 +103,6 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
       if (previousSection === 3 && section !== 3) {
         mattressAnimationStartedRef.current = false;
         console.log("Leaving section 3, resetting mattress animation flag");
-      }
-      // Reset flags for section 5
-      if (section === 5 && previousSection !== 5) {
-        animationStartedRef.current = false;
-        console.log("Entering section 5, resetting animation flags");
-      }
-      if (previousSection === 5 && section !== 5) {
-        animationStartedRef.current = false;
-        console.log("Leaving section 5, resetting animation flags");
       }
     };
 
@@ -170,59 +161,7 @@ export function SceneContent({ onCenter, onLoadingComplete }) {
       }
       mixer.update(delta);
     }
-    // Section 5: Play animations once
-    else if (currentSection === 5) {
-      if (!animationStartedRef.current) {
-        console.log("Starting animations once in section 5");
-        const sideAction = actions["Side"];
-        const doorAction = actions["Door"];
-        const backWindowAction = actions["BackWindow"];
-
-        // Disable all other actions first
-        Object.values(actions).forEach((a) => {
-          if (!a) return;
-          a.enabled = false;
-          a.weight = 0;
-          a.stop();
-        });
-
-        if (doorAction) {
-          doorAction.reset();
-          doorAction.enabled = true;
-          doorAction.weight = 1;
-          doorAction.paused = false;
-          doorAction.setLoop(THREE.LoopOnce);
-          doorAction.clampWhenFinished = true;
-          doorAction.play();
-          console.log("Started Door animation once");
-        }
-        
-        if (sideAction) {
-          sideAction.reset();
-          sideAction.enabled = true;
-          sideAction.weight = 1;
-          sideAction.paused = false;
-          sideAction.setLoop(THREE.LoopOnce);
-          sideAction.clampWhenFinished = true;
-          sideAction.play();
-          console.log("Started Side animation once");
-        }
-        
-        if (backWindowAction) {
-          backWindowAction.reset();
-          backWindowAction.enabled = true;
-          backWindowAction.weight = 1;
-          backWindowAction.paused = false;
-          backWindowAction.setLoop(THREE.LoopOnce);
-          backWindowAction.clampWhenFinished = true;
-          backWindowAction.play();
-          console.log("Started BackWindow animation once");
-        }
-        animationStartedRef.current = true;
-      }
-      mixer.update(delta);
-    }
-    // Normal scroll-controlled animation
+    // Normal scroll-controlled animation for all other sections (including section 5)
     else if (entries.length > 0) {
       if (scrubRef.current.exclusive) {
         Object.values(actions).forEach((a) => {
