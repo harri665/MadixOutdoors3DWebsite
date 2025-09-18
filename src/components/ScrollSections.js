@@ -59,45 +59,110 @@ function createCameraQueue() {
  * ========================= */
 function createAnimator(api) {
   const tweens = new Map(); // name -> { cancel }
+  
   function scrub(entries, exclusive = true) {
     if (!entries || entries.length === 0) return;
     api.scrub(entries, exclusive);
   }
+  
   function tweenTo(name, from, to, ms) {
+    console.log(`Creating tween for ${name}: ${from} -> ${to} over ${ms}ms`);
     const existing = tweens.get(name);
     if (existing) existing.cancel();
+    
     let raf = 0;
     const start = performance.now();
+    
     const loop = () => {
       const now = performance.now();
       const p = Math.min(1, (now - start) / ms);
       const t = from + (to - from) * p;
+      
+      // Send individual scrub for this tween with exclusive=false
       api.scrub([{ name, t }], false);
-      if (p < 1) raf = requestAnimationFrame(loop);
-      else tweens.delete(name);
+      console.log(`Tween ${name} at t=${t.toFixed(3)} (${(p * 100).toFixed(1)}%)`);
+      
+      if (p < 1) {
+        raf = requestAnimationFrame(loop);
+      } else {
+        tweens.delete(name);
+        console.log(`Tween completed for ${name} at final t=${t}`);
+      }
     };
+    
     raf = requestAnimationFrame(loop);
-    const cancel = () => { if (raf) cancelAnimationFrame(raf); tweens.delete(name); };
+    const cancel = () => { 
+      if (raf) cancelAnimationFrame(raf); 
+      tweens.delete(name); 
+    };
     tweens.set(name, { cancel });
   }
+  
   function cancel(name) { const tw = tweens.get(name); if (tw) tw.cancel(); }
-  function cancelAll() { tweens.forEach(({ cancel }) => cancel()); tweens.clear(); }
+  function cancelAll() { 
+    tweens.forEach(({ cancel }) => cancel()); 
+    tweens.clear();
+  }
   return { scrub, tweenTo, cancel, cancelAll };
 }
 
 /* =========================
- * Helpers that touch your scene graph (unchanged behavior)
+ * Helpers that touch your scene graph (with smooth transitions)
  * ========================= */
 function makeSetGeo1Style(api) {
+  const materialAnimations = new Map(); // Track ongoing animations per material
+  
   return (active) => {
     if (!api.group?.current) return;
     api.group.current.traverse((child) => {
       if (child.name === "geo1" && child.material) {
         const setMat = (m) => {
-          m.transparent = active;
-          m.opacity = active ? 0.5 : 1.0;
-          m.color.setHex(active ? 0xc39718 : 0xffffff);
-          m.needsUpdate = true;
+          const targetOpacity = active ? 0.5 : 1.0;
+          const targetColor = active ? 0xc39718 : 0xffffff;
+          
+          // Cancel any existing animation for this material
+          if (materialAnimations.has(m)) {
+            cancelAnimationFrame(materialAnimations.get(m));
+          }
+          
+          // Set color immediately but handle transparency more carefully
+          m.color.setHex(targetColor);
+          
+          // Animate opacity smoothly
+          const startOpacity = m.opacity;
+          const startTime = performance.now();
+          const duration = 300; // 300ms transition
+          
+          const animateOpacity = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Ease in-out function for smooth animation
+            const eased = progress < 0.5 
+              ? 2 * progress * progress 
+              : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+            
+            const currentOpacity = startOpacity + (targetOpacity - startOpacity) * eased;
+            m.opacity = currentOpacity;
+            
+            // Set transparency based on whether we need it (opacity < 1.0)
+            m.transparent = currentOpacity < 1.0;
+            m.needsUpdate = true;
+            
+            if (progress < 1) {
+              const animationId = requestAnimationFrame(animateOpacity);
+              materialAnimations.set(m, animationId);
+            } else {
+              // Ensure final state is set correctly
+              m.opacity = targetOpacity;
+              m.transparent = targetOpacity < 1.0;
+              m.needsUpdate = true;
+              materialAnimations.delete(m);
+            }
+          };
+          
+          const animationId = requestAnimationFrame(animateOpacity);
+          materialAnimations.set(m, animationId);
         };
         Array.isArray(child.material) ? child.material.forEach(setMat) : setMat(child.material);
       }
@@ -132,6 +197,14 @@ const FLY_POSES = [
   { position: new THREE.Vector3(0, 0.5, -1.4), target: new THREE.Vector3(0, 2,   0), moveDuration: 0,  holdDuration: 0.1 },
 ];
 
+/* =========================
+ * Camera flythrough poses (Section 6)
+ * ========================= */
+const SECTION6_FLY_POSES = [
+  { position: new THREE.Vector3(0, 0.5, -5), target: new THREE.Vector3(0, 0, 0), moveDuration: 1.5, holdDuration: 0 },
+  { position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0), moveDuration: 2.0, holdDuration: 1.0 },
+];
+
 /* =========================================================
  * CONFIG: Define what each section does (clips & camera)
  * mode: "scrub" = map scroll progress to clip t (0..1)
@@ -140,10 +213,16 @@ const FLY_POSES = [
  * camera.mode: "fixed" | "timeline"
  * ========================================================= */
 function buildSectionDefs(api, utils) {
-  const { setGeo1Style, show3in, resolve } = utils;
+  const { setGeo1Style, show3in, resolve, tentOpenClose } = utils;
   const door = resolve("Door"); // fuzzy door name once
-  // Try to resolve tent animation with multiple name variations
-  const tentOpenClose = resolve("TentOPENCLOSE") || resolve("tentOpenClose") || resolve("TentOpenClose");
+  
+  console.log("Building section defs - Available clips:", api.clipNames);
+  console.log("Resolved clips:");
+  console.log("  Door:", door);
+  console.log("  BackWindow:", resolve("BackWindow"));
+  console.log("  Side:", resolve("Side"));
+  console.log("  animation0:", resolve("animation0"));
+  console.log("  tentOpenClose:", tentOpenClose);
   
   return [
     /* ===== 1. Open/Setup (reversed like before) ===== */
@@ -180,7 +259,7 @@ function buildSectionDefs(api, utils) {
       onExit: () => {},
       camera: {
         mode: "fixed",
-        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) }),
+        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, -1) }),
         baseDuration: (_, fast) => (fast ? 1.0 : 3.0),
       },
     },
@@ -195,7 +274,7 @@ function buildSectionDefs(api, utils) {
       onExit: () => { show3in(false); },
       camera: {
         mode: "fixed",
-        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, 0) }),
+        getPose: () => ({ position: new THREE.Vector3(1.7, 1.15, -1.05), target: new THREE.Vector3(-0.7, 0.9, -1) }),
         baseDuration: (_, fast) => (fast ? 1.0 : 3.0),
       },
     },
@@ -236,31 +315,27 @@ function buildSectionDefs(api, utils) {
       },
     },
 
-    /* ===== 6. Return/Close side + back window (tween on enter) ===== */
+    /* ===== 6. Return/Close side + back window (snap with timer progression) ===== */
     {
       id: 6,
       label: "Return/Close",
       actions: [
-        // Kick off time-based closes once when we ENTER section 6 (same as your tweenTo)
-        { mode: "tween", clip: resolve("BackWindow"), from: 1, to: 0, ms: 2000, trigger: "enter" },
-        { mode: "tween", clip: resolve("Side"),       from: 1, to: 0, ms: 2000, trigger: "enter" },
-
-        // And keep everything closed while we stay here
-        // { mode: "snap", clip: resolve("BackWindow"), t: 0 },
-        // { mode: "snap", clip: resolve("Side"),       t: 0 },
-
-        // Reset other animations immediately (like before)
-        { mode: "snap", clip: resolve("animation0"),    t: 1 },
-        { mode: "snap", clip: tentOpenClose, t: 1 },
-        // { mode: "snap", clip: door,                     t: 0 },
+        // Use snap actions that will be controlled by a timer
+        { mode: "snap", clip: resolve("BackWindow"), t: 1 }, // Will be overridden by timer
+        { mode: "snap", clip: resolve("Side"), t: 1 },       // Will be overridden by timer
+        { mode: "snap", clip: resolve("animation0"), t: 0.98 }, // Will be overridden by timer
+        { mode: "snap", clip: tentOpenClose, t: 0.98 },         // Will be overridden by timer
       ],
-      onEnter: () => { setGeo1Style(false); show3in(false); },
+      onEnter: () => { 
+        console.log("Section 6 entered - starting snap-based animation timer");
+        setGeo1Style(false); 
+        show3in(false); 
+      },
       onUpdate: () => {},
       onExit: () => {},
       camera: {
-        mode: "fixed",
-        getPose: () => ({ position: new THREE.Vector3(3, 1.6, 3.4), target: new THREE.Vector3(0, 0.5, 0) }),
-        baseDuration: (_, fast) => (fast ? 1.5 : 4.0),
+        mode: "timeline",
+        poses: SECTION6_FLY_POSES,
       },
     },
   ];
@@ -291,11 +366,16 @@ export function ScrollSections() {
   // per-run state
   const triggeredTweensRef = useRef(new Set()); // `${sectionId}:${clip}`
   const section5RunnerRef = useRef({ running: false, start: 0, i: 0 });
+  const section6RunnerRef = useRef({ running: false, start: 0, i: 0 });
+  const section6AnimRunnerRef = useRef({ running: false, start: 0 }); // New animation runner for section 6
 
   // helpers that depend on api
   const setGeo1Style = makeSetGeo1Style(api);
   const show3in = makeShow3in(api);
   const resolve = (name) => resolveClipName(name, api.clipNames || []);
+  
+  // Resolve tent animation name at component level for use in animation runner
+  const tentOpenClose = resolve("TentOPENCLOSE") || resolve("tentOpenClose") || resolve("TentOpenClose");
 
   // initial "open" state - set animation0 and tentOpenClose to t:0.98 on page load
   const ensureInitialOpenState = () => {
@@ -321,7 +401,7 @@ export function ScrollSections() {
   };
 
   // build section config
-  const SECTION_DEFS = buildSectionDefs(api, { setGeo1Style, show3in, resolve });
+  const SECTION_DEFS = buildSectionDefs(api, { setGeo1Style, show3in, resolve, tentOpenClose });
 
   // camera helpers
   const queueCam = (pose, opts = {}) => camQRef.current.queue(pose, opts);
@@ -365,11 +445,124 @@ export function ScrollSections() {
     section5RunnerRef.current.running = false;
   }
 
+  // section 6 camera timeline engine (time-based)
+  function startSection6Flythrough() {
+    const runner = section6RunnerRef.current;
+    console.log("Starting section 6 flythrough animation");
+    runner.running = true;
+    runner.start = performance.now();
+    runner.i = 0;
+
+    const step = () => {
+      if (!runner.running) return;
+      const elapsed = (performance.now() - runner.start) / 1000;
+      let tUsed = 0;
+      for (let k = 0; k < SECTION6_FLY_POSES.length; k++) {
+        const seg = SECTION6_FLY_POSES[k];
+        const segLen = seg.moveDuration + seg.holdDuration;
+        if (elapsed < tUsed + segLen) {
+          runner.i = k;
+          const inSeg = elapsed - tUsed;
+          const moving = inSeg <= seg.moveDuration;
+          console.log(`Section 6 flythrough step ${k}, elapsed: ${elapsed.toFixed(2)}s, moving: ${moving}`);
+          queueCam(
+            { position: seg.position, target: seg.target },
+            { baseDuration: moving ? seg.moveDuration : 0.1, immediate: false }
+          );
+          requestAnimationFrame(step);
+          return;
+        }
+        tUsed += segLen;
+      }
+      console.log("Section 6 flythrough completed");
+      runner.running = false;
+    };
+    requestAnimationFrame(step);
+  }
+  function stopSection6Flythrough() {
+    console.log("Stopping section 6 flythrough animation");
+    section6RunnerRef.current.running = false;
+  }
+
+  // section 6 animation runner (controls snap values over time)
+  function startSection6Animation() {
+    const runner = section6AnimRunnerRef.current;
+    if (runner.running) return; // Don't start if already running
+    
+    console.log("Starting section 6 animation progression");
+    runner.running = true;
+    runner.start = performance.now();
+    
+    const animator = animatorRef.current;
+    
+    // Define the animation timeline for each clip
+    const animationTimeline = [
+      { clip: resolve("Door"), startTime: 0, duration: 1000, from: 1, to: 0 },        // Door closes quickly
+      { clip: resolve("BackWindow"), startTime: 0, duration: 2000, from: 1, to: 0 },
+      { clip: resolve("Side"), startTime: 200, duration: 2000, from: 1, to: 0 },
+      { clip: tentOpenClose, startTime: 600, duration: 1800, from: 0, to: 1 },
+      { clip: resolve("animation0"), startTime: 400, duration: 2000, from: 0, to: 1 },
+      
+    ].filter(anim => anim.clip); // Only include clips that resolved
+    
+    console.log("Section 6 animation timeline:", animationTimeline);
+    
+    const step = () => {
+      if (!runner.running) return;
+      
+      const elapsed = performance.now() - runner.start;
+      const entries = [];
+      let anyActive = false;
+      
+      for (const anim of animationTimeline) {
+        const animElapsed = elapsed - anim.startTime;
+        
+        if (animElapsed >= 0) {
+          if (animElapsed <= anim.duration) {
+            // Animation is active
+            anyActive = true;
+            const progress = Math.min(animElapsed / anim.duration, 1);
+            const t = anim.from + (anim.to - anim.from) * progress;
+            entries.push({ name: anim.clip, t });
+            console.log(`Section 6 anim ${anim.clip}: progress=${(progress * 100).toFixed(1)}%, t=${t.toFixed(3)}`);
+          } else {
+            // Animation completed, hold final value
+            entries.push({ name: anim.clip, t: anim.to });
+          }
+        } else {
+          // Animation not started yet, hold initial value
+          entries.push({ name: anim.clip, t: anim.from });
+        }
+      }
+      
+      if (entries.length > 0) {
+        animator.scrub(entries, false); // Use non-exclusive
+      }
+      
+      if (anyActive) {
+        requestAnimationFrame(step);
+      } else {
+        console.log("Section 6 animation completed");
+        runner.running = false;
+      }
+    };
+    
+    requestAnimationFrame(step);
+  }
+  
+  function stopSection6Animation() {
+    console.log("Stopping section 6 animation progression");
+    section6AnimRunnerRef.current.running = false;
+  }
+
   // scroll orchestration
   useEffect(() => {
     if (!api || !api.clipNames || api.clipNames.length === 0) return;
     const animator = animatorRef.current;
     const camQ = camQRef.current;
+
+    // Ensure we start at section 0 (top of page) on load
+    window.scrollTo(0, 0);
 
     // baseline camera: immediate snap to idle
     camQ.reset();
@@ -386,7 +579,7 @@ export function ScrollSections() {
 
     let lastScrollTime = 0;
     let lastProgress = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-    let lastSection = -1;
+    let lastSection = 0; // Start at section 0 instead of -1
 
     const onScroll = () => {
       const now = performance.now();
@@ -399,13 +592,13 @@ export function ScrollSections() {
         6: progressFor(sectRefs[6].current),
       };
 
-      // current section detection
-      let currentSection = -1;
+      // current section detection - allow section 0 when no sections are active
+      let currentSection = 0; // Default to section 0
       for (let i = 1; i <= 6; i++) {
         if (p[i] > 0 && p[i] <= 1) { currentSection = i; break; }
       }
       const anyActive = Object.values(p).some(v => v > 0);
-      const isInTransition = currentSection === -1 && anyActive;
+      const isInTransition = currentSection === 0 && anyActive;
 
       if (currentSection !== lastSection) {
         console.log(`Section changed from ${lastSection} to ${currentSection}`);
@@ -428,6 +621,18 @@ export function ScrollSections() {
         if (lastSection === 5 && section5RunnerRef.current.running) {
           console.log("Leaving section 5, stopping flythrough");
           stopFlythrough();
+        }
+
+        // section 6 camera runner
+        if (currentSection === 6 && !section6RunnerRef.current.running) {
+          console.log("Entering section 6, starting flythrough and animation");
+          startSection6Flythrough();
+          startSection6Animation();
+        }
+        if (lastSection === 6 && section6RunnerRef.current.running) {
+          console.log("Leaving section 6, stopping flythrough and animation");
+          stopSection6Flythrough();
+          stopSection6Animation();
         }
 
         lastSection = currentSection;
@@ -455,17 +660,8 @@ export function ScrollSections() {
           } else if (act.mode === "snap") {
             const cond = act.when ? !!act.when(p[currentSection]) : true;
             if (cond) scrubs.push({ name: act.clip, t: THREE.MathUtils.clamp(act.t ?? 0, 0, 1) });
-          } else if (act.mode === "tween") {
-            const trig = act.trigger || "enter"; // "enter" | "always"
-            const key = `${def.id}:${act.clip}`;
-            const shouldStart = trig === "enter"
-              ? (p[currentSection] > 0 && !triggeredTweensRef.current.has(key))
-              : true;
-            if (shouldStart) {
-              triggeredTweensRef.current.add(key);
-              animator.tweenTo(act.clip, act.from ?? 0, act.to ?? 1, act.ms ?? 1000);
-            }
           }
+          // Removed tween handling since section 6 now uses snap + timer
         }
 
         // camera per section
@@ -475,10 +671,16 @@ export function ScrollSections() {
         }
       }
 
-      // section 5 camera timeline handled separately (running only while in 5)
-      // send scrubs (exclusive)
-      if (scrubs.length) animator.scrub(scrubs, true);
-      else window.dispatchEvent(new Event("clearScrub"));
+      // send scrubs for non-section-6 sections (section 6 handles its own animations)
+      if (currentSection === 6) {
+        // Section 6 animations are handled by the animation runner, don't interfere
+        console.log("Section 6 active - letting animation runner handle scrubs");
+      } else if (scrubs.length) {
+        console.log(`Scrubbing ${scrubs.length} entries for section ${currentSection}`);
+        animator.scrub(scrubs, true);
+      } else {
+        window.dispatchEvent(new Event("clearScrub"));
+      }
 
       // idle camera when nothing is active and not transitioning
       if (!anyActive && !isInTransition) {
@@ -511,6 +713,8 @@ export function ScrollSections() {
       camQ.reset();
       animator.cancelAll();
       stopFlythrough();
+      stopSection6Flythrough();
+      stopSection6Animation();
     };
   }, [api]); // rebind when clipNames/group change
 
