@@ -242,8 +242,8 @@ function buildSectionDefs(api, utils) {
       id: 5,
       label: "Side",
       actions: [
-        // Stop Door and BackWindow, but play Side animation based on scroll
-        { mode: "snap", clip: door, t: 0 },
+        // Door animation from 1 to 0 at start of section
+        { mode: "scrub", clip: door, map: (s) => Math.max(0, 1 - s) },
         { mode: "snap", clip: resolve("BackWindow"), t: 0 },
         { mode: "scrub", clip: resolve("Side"), map: (s) => s },
       ],

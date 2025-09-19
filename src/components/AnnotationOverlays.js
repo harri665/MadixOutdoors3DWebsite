@@ -125,8 +125,8 @@ export function AnnotationOverlays() {
     }
   }, []);
 
-  // Hide annotations in section 8
-  if (currentSection === 8) {
+  // Hide annotations in section 7
+  if (currentSection === 7) {
     return null;
   }
 

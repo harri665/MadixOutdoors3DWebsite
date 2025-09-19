@@ -25,12 +25,6 @@ export function AnnotationSystem() {
       text: "Rear Hatch", 
       description: "* Compression lock system \n * Tinted rear acrylic window",
       position: "bottom"
-    }],
-    7: [{ 
-      objectName: "Plane008", 
-      text: "Interior Space", 
-      description: "* Light Grey suede roof finish  \n * Interior LED light strip",
-      position: "top"
     }]
   };
 
