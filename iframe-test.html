@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Madix Outdoors - 3D Display</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .iframe-container {
+            width: 100%;
+            height: 80vh;
+            min-height: 600px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .controls {
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        .controls button {
+            margin: 0 5px;
+            padding: 10px 20px;
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .controls button:hover {
+            background-color: #005a87;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Madix Outdoors</h1>
+        <p>Interactive 3D Product Display</p>
+    </div>
+    
+    <div class="iframe-container">
+        <iframe 
+            id="madixFrame"
+            src="https://madixoutdoors.harrison-martin.com/" 
+            title="Madix Outdoors 3D Display"
+            allowfullscreen
+            loading="lazy">
+            <p>Your browser doesn't support iframes. Please visit <a href="https://madixoutdoors.harrison-martin.com/">madixoutdoors.harrison-martin.com</a> directly.</p>
+        </iframe>
+    </div>
+    
+    <div class="controls">
+        <button onclick="reloadFrame()">Reload 3D Display</button>
+        <button onclick="fullscreen()">Open in New Tab</button>
+    </div>
+    
+    <script>
+        function reloadFrame() {
+            const iframe = document.getElementById('madixFrame');
+            iframe.src = iframe.src;
+        }
+        
+        function fullscreen() {
+            window.open('https://madixoutdoors.harrison-martin.com/', '_blank');
+        }
+        
+        // Optional: Listen for iframe load events
+        document.getElementById('madixFrame').addEventListener('load', function() {
+            console.log('3D Display loaded successfully');
+        });
+        
+        // Optional: Handle iframe errors
+        document.getElementById('madixFrame').addEventListener('error', function() {
+            console.error('Failed to load 3D Display');
+        });
+    </script>
+</body>
+</html>
